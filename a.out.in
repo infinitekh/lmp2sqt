@@ -1,0 +1,6 @@
+kVal       0.01
+deltaT     0.01
+limitCorrAv	 4
+nBuffCorr	10
+nFunCorr	500
+nValCorr	10

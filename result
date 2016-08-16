@@ -1,0 +1,11 @@
+NameList -- data
+limitDiffuseAv	0 
+nBuffDiffuse	0 
+nValDiffuse	0 
+kVal		0.0500000 
+deltaT		0.100000 
+limitCorrAv	2 
+nBuffCorr	40 
+nFunCorr	130 
+nValCorr	20 
+----
