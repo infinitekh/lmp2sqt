@@ -1,8 +1,8 @@
 rVal		0.5
-kVal		0.05
+kVal		0.0523
 deltaT		0.10000 
-limitCorrAv	1 
-nBuffCorr	13
-nFunCorr	130
-nValCorr	13
+limitCorrAv	10
+nBuffCorr	2
+nFunCorr	30
+nValCorr	2
 ----

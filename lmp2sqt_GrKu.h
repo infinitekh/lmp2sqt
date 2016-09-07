@@ -75,6 +75,8 @@ void PrintDiffuse (FILE *fp);
 void EvalDiffuse (Snapshot * snap);
 void AccumDiffuse (int nCol);
 
+void Init_reciprocal_space(Snapshot * snap);
+
 void ZeroSpacetimeCorr ();
 void InitSpacetimeCorr ();
 void EvalOtherInformation ();

@@ -62,7 +62,7 @@ typedef struct {
 
 NameList nameList[] = {
 	NameR   (rVal),
-//	NameR    (kVal),
+	NameR    (kVal),
 	NameR    (deltaT),
 	NameI   		(limitCorrAv),
 	NameI 	(nBuffCorr), // number of simul. time seq
@@ -88,19 +88,24 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 	GetNameList(argc,argv);
-	PrintNameList(stdout);
 
 	int maxAtom =0;
 
 	AllocArray();
 	InitSpacetimeCorr();
 	InitDiffuse ();
-	
 
 	strcpy( filename,argv[1]);
 	FILE* fp = fopen( filename ,"r");
 	Snapshot* snap;
 	n_snap = 0;	
+	
+	// kVal value have be changed because reciprocal information
+	snap = read_dump(fp);
+	Init_reciprocal_space(snap);
+	rewind(fp);
+	PrintNameList(stdout);
+
 	while(1) {
 		snap =	read_dump(fp);
 		
@@ -553,7 +558,7 @@ void PrintNameList (FILE *fp)
 
 /*-----------------------------------------------------------------------------
  *  Diffusion part
- *
+ *	Save reference position
  *-----------------------------------------------------------------------------*/
 void InitDiffuse () {
 	int nb;
@@ -578,24 +583,38 @@ void PrintDiffuse (FILE *fp){
 	real tVal;
 	int j,nr;
 
-	fprintf (fp, "#diffusion\n");
+	char filename1[100] ="Dt00.info" ;
+	char filename2[100] ="vanHove00.info" ;
+	int nfile = 0;
+	while( 0 == (access(filename1,F_OK))+(access(filename2,F_OK))) {
+		nfile++;
+		sprintf(filename1, "Dt%02d.info",nfile);
+		sprintf(filename2, "vanHove%02d.info",nfile);
+	}
+	FILE* fp_Dt = fopen(filename1,"w");
+	FILE* fp_Gr = fopen(filename2,"w");
+
+
+	fprintf (fp_Dt, "#diffusion\n");
 
 	for ( j = 0; j < nValCorr; j += 1 ) {
 		tVal = j * deltaT;
-		fprintf (fp, "%8.4f %8.4f\n", tVal, rrDiffuseAv[j] ); 
+		fprintf (fp_Dt, "%8.4f %8.4f %8.4f\n", tVal, rrDiffuseAv[j] , tVal*rrDiffuseAv[j]); 
 	}
 	/*-----------------------------------------------------------------------------
 	 *  van Hove function part
 	 *-----------------------------------------------------------------------------*/
-	fprintf (fp, "#van Hove function\n");
+	fprintf (fp_Gr, "#van Hove function\n");
 	
 	for ( nr=0; nr<nFunCorr; nr++)  {
 		for (j = 0; j < nValCorr; j ++) {
-			fprintf (fp, " %8.4e", avDrTable[nr][j] *factorDr[nr]);
+			fprintf (fp_Gr, " %8.4e", avDrTable[nr][j] *factorDr[nr]);
 		}
-		fprintf (fp, "\n");
+		fprintf (fp_Gr, "\n");
 	}
-	fprintf (fp, "\n");
+	fprintf (fp_Gr, "\n");
+
+	fclose(fp_Dt); fclose(fp_Gr);
 }
 
 void EvalDiffuse (Snapshot * snap){
@@ -640,7 +659,8 @@ void EvalDiffuse (Snapshot * snap){
 				dr.y = tBuf[nb].orgR[n].y - col_i->y;
 				dr.z = tBuf[nb].orgR[n].z - col_i->z;
 				deltaR = sqrt(dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
-				tBuf[nb].rrDiffuse[ni] += deltaR;
+				//tBuf[nb].rrDiffuse[ni] += deltaR;     /* 이부분을 잘못함... */
+				tBuf[nb].rrDiffuse[ni] += deltaR*deltaR;
 
 				i_Dr    = (int) (deltaR/rVal);
 				if (i_Dr<nFunCorr)
@@ -668,8 +688,9 @@ void AccumDiffuse (int nCol){
 			++ countDiffuseAv;
 			if (countDiffuseAv == limitCorrAv) {
 				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
-				for (j = 1; j < nValCorr; j ++)
+				for (j = 1; j < nValCorr; j ++) {
 					rrDiffuseAv[j] *= fac/ j;
+				}
 				PrintDiffuse (stdout);
 				ZeroDiffuse ();
 			}
@@ -678,3 +699,38 @@ void AccumDiffuse (int nCol){
 
 }
 
+void Init_reciprocal_space(Snapshot * snap) {
+	/*-----------------------------------------------------------------------------
+	 *  원래는 delta_k 값이 2pi/L보다 작을시에 simulation 박스를 복사하여 
+	 *  replica를 포함하는 공간에 대해서 계산하는 식으로 하려고 하였으나 
+	 *  복소평면 상에서 그려보았을 때 전부 더하면 0이 되는 관계로 
+	 *  더이상 구할 수 없고 아무 의미 없음이 확인하었다. 
+	 *  periodic boundary라 아닐 때는 상관없이 좋은 결과를 낼 수 있을 것이다. 
+	 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
+	 *-----------------------------------------------------------------------------*/
+	real b, c, c0, c1, c2, s, s1, s2, w;
+	extern real kVal;
+	int k,j;
+	int n_mul;
+	char* vName = "kVal";
+	void* p_kVal;
+	real r[3], mu[3], L[3];
+	// zero initalize current time value
+// we assume L0=L1 = L2	
+	L[0] = snap->box.xhigh- snap->box.xlow;
+	L[1] = snap->box.yhigh- snap->box.ylow;
+	L[2] = snap->box.zhigh- snap->box.zlow;
+
+/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+ * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
+ * 			j=0;
+ * 			p_kVal = NP_R;
+ * 		}
+ * 	}
+ * 	printf( "kVal %p kValp %p\n", &kVal, p_kVal);
+ */
+
+	n_mul = kVal/ (2.*M_PI/ L[0] );
+	if (n_mul <=0) n_mul =1;
+	kVal = (2.*M_PI/L[0]) * n_mul;
+}
