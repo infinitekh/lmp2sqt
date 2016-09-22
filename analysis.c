@@ -208,7 +208,7 @@ int main ( int argc, char **argv)
 		nv = nValCorr * tMax /  (nValCorr - 1) / deltaTCorr;
 		printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
 	} // else end
-
+    
 	for ( j = 0; j < nDataTypes; j += 1 ) {
 		printf("%s\n", header[j]);
 		for (n=0; n < nv; n++) {
