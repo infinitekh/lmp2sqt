@@ -26,6 +26,9 @@ typedef struct {
 #include <string.h>
 #include <math.h>
 #include "snapshot.h"
+#include <errno.h>
+
+
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
 	  return (type *) malloc(sizeof(type)*n); \
 }
@@ -50,8 +53,9 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 
 #define BUFF_LEN 1024
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
-
-char *header[] = {"cur-long", "cur-trans", "density", "gamma_qt", "Dqt", "vanHove-self"},
+int  type[]    = { 1,   1,  1,  0 };
+int  scail[]    = { 1,   1,  1,  0 };
+char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 		 *txtCorr = "space-time corr";
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName);
@@ -64,7 +68,7 @@ int main ( int argc, char **argv)
 	int doFourier,doWindow,j,k,n,nData,nFunCorr,nSet,nSetSkip,
 			nv, nValCorr;
 	char *bp, *fName, buff[BUFF_LEN], *lmpFileName;
-	FILE *fp;
+	FILE *input;
 	Snapshot* pSnap;
 /* 	int nDataTypes = sizeof(header);
  * 	int tempa      = sizeof(char*);
@@ -72,6 +76,10 @@ int main ( int argc, char **argv)
  * 	exit(1);
  */
 
+	
+	/*-----------------------------------------------------------------------------
+	 *  Argument Check!! And open a file.
+	 *-----------------------------------------------------------------------------*/
 	n = 1;
 	if (-- argc <1 || ! strcmp (argv[1], "-h")) PrintHelp (argv[0]);
 	doFourier =1;
@@ -87,17 +95,29 @@ int main ( int argc, char **argv)
 		}
 		++ n;
 	}
-
+	
 	if (argc >0) PrintHelp (argv[0]);
 	omegaMax = 10.;
 	tMax = 5.;
-	if((fp = fopen (fName, "r")) == 0) {
-		printf ("no file\n");
-		exit (0);
+
+	if(!strcmp(fName,"-")) {
+		input = stdin;
+	} else {
+		input = fopen(fName,"r");
+		if (NULL == input) {
+			fprintf(stderr, "Unable to open '%s': %s\n",
+					fName, strerror(errno));
+			exit(EXIT_FAILURE);
+		}
 	}
+//	if((input = fopen (fName, "r")) == 0) {
+//		printf ("no file : %s\n", fName);
+//		fp
+//		exit (0);
+//	}
 
 	while (1) {
-		bp = fgets (buff, BUFF_LEN, fp);
+		bp = fgets (buff, BUFF_LEN, input);
 		if (*bp == CHAR_MINUS) break;
 		NameVal (deltaT);
 		NameVal (nFunCorr);
@@ -120,28 +140,31 @@ int main ( int argc, char **argv)
 	nData =0;
 	nSet =0;
 	while (1) {
-		//		if ( NULL == (pSnap = read_dump (fp ) )) break;
-		if (! (bp = fgets (buff, BUFF_LEN, fp))) break;
+		//		if ( NULL == (pSnap = read_dump (input ) )) break;
+		if (! (bp = fgets (buff, BUFF_LEN, input))) break;
 		if (! strncmp (bp, txtCorr, strlen (txtCorr))) {
 			++ nSet;
 			if (nSet < nSetSkip) continue;
 			++ nData;
 			for ( j =0; j < nDataTypes; j++) {
-				bp = fgets (buff, BUFF_LEN, fp); // header types check(not completed)
+				bp = fgets (buff, BUFF_LEN, input); // header types check(not completed)
+				printf(" header check : %s \n", buff);
+				
 				for ( n =0; n<nValCorr; n ++) {
-					bp = fgets (buff, BUFF_LEN, fp);
+					bp = fgets (buff, BUFF_LEN, input);
 
 					for ( k = 0; k < nFunCorr; k += 1 ) {
 						w = strtod (bp, &bp);
 						corrSum[j][k * nValCorr + n] += w;
 						corrSumSq[j][k * nValCorr + n] += Sqr(w);
 					}
-//					bp = fgets (buff, BUFF_LEN, fp);// null line
 				}
+					bp = fgets (buff, BUFF_LEN, input);// null line
+					printf(" endline null string default : %s \n", buff);
 			}
 		}
 	}
-	fclose (fp);
+	fclose (input);
 	printf ("%d\n", nData);
  
 	for ( j = 0; j < nDataTypes; j += 1 ) {
@@ -170,18 +193,21 @@ int main ( int argc, char **argv)
 		}
 		omegaMax= Min(omegaMax, M_PI / deltaTCorr);
 		nv = nValCorr * omegaMax / (M_PI / deltaTCorr);
-	} else {
-		
+	}   //  print A(q,omega) or A(r,omega)
+	else {   // print A(q,t), or A(r,t)
 		for ( j = 0; j < nDataTypes; j += 1 ) {
-			for ( k = 0; k < nFunCorr; k += 1 ) {
-				for ( n = 1; n < nValCorr; n += 1 ) 
-					corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
-				corrSum[j][k * nValCorr] = 1.;
+			if (scail[j] ){
+				for ( k = 0; k < nFunCorr; k += 1 ) {
+					for ( n = 1; n < nValCorr; n += 1 ) 
+						corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
+					corrSum[j][k * nValCorr] = 1.;
+				}
 			}
 		}
 		tMax = Min ( tMax, (nValCorr -1) * deltaTCorr);
-		nv = nValCorr * tMax / ( (nValCorr - 1) / deltaTCorr);
-	}
+		nv = nValCorr * tMax /  (nValCorr - 1) / deltaTCorr;
+		printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
+	} // else end
 
 	for ( j = 0; j < nDataTypes; j += 1 ) {
 		printf("%s\n", header[j]);
@@ -200,7 +226,9 @@ int main ( int argc, char **argv)
 void PrintHelp ( char *pName)
 {
 	printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
-			 " input-file \n" , pName);
+			 " input-file \n" 
+			 " if you want to use stdin, you should used -  \n"
+			 , pName);
 	exit(0);
 }
 

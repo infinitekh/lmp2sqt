@@ -223,13 +223,6 @@ void PrintSpacetimeCorr (FILE *fp)
 			case 3:                                   /* gamma_qt */
 				for (n = 0; n < nValCorr; n ++) {   
 					for (j = 0; j < nFunCorr; j ++)
-						fprintf (fp, " %8.4f", valGammaQT[j][n]);
-					fprintf (fp, "\n");
-				}
-				break ;
-			case 4:                                   /* D_qt before lim t->0 */
-				for (n = 0; n < nValCorr; n ++) {   
-					for (j = 0; j < nFunCorr; j ++)
 						fprintf (fp, " %8.4f", valDqt[j][n]);
 					fprintf (fp, "\n");
 				}
