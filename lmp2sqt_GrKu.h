@@ -58,8 +58,9 @@ ALLOC(VecR3);
 	a.R = x,																							\
 	a.I = y
 #define BUFF_LEN 1024
-char *header[]= {"cur-long", "cur-trans", "densty"},
-		 *txtCorr = "space-time corr";
+/* char *header[]= {"cur-long", "cur-trans", "densty"},
+ * 		 *txtCorr = "space-time corr";
+ */
 void* unused_pointer;
 int ununused_value;
 #define AllocMem(a, n, t)                       \
@@ -69,11 +70,6 @@ int ununused_value;
 AllocMem (a[0], (n1) * (n2), t);                     \
 for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_value] = a[ununused_value - 1] + n2;
 
-void ZeroDiffuse ();
-void InitDiffuse ();
-void PrintDiffuse (FILE *fp);
-void EvalDiffuse (Snapshot * snap);
-void AccumDiffuse (int nCol);
 
 void Init_reciprocal_space(Snapshot * snap);
 
