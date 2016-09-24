@@ -33,6 +33,8 @@
 #define CENT_DIFF(A,y)  ( A[(y) +1] A[(y)-1]  )   
 #define BACK_DIFF(A,y)  ( A[(y) -2] A[(y)-1] A[(y)] )   
 
+#define DIM 3
+
 typedef enum {N_I, N_R} VType;
 typedef struct {
 	char *vName;
@@ -116,10 +118,7 @@ int main(int argc, char** argv) {
 
 		
 		free_Snapshot(snap);
-		n_snap++;
-		/* 			free(snap->atoms);
-		 * 			free(snap);
-		 */
+		n_snap++; 
 	}
 
 	if (n_snap <5){
@@ -130,7 +129,6 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-#define DIM 3
 void AccumSpacetimeCorr ( int nCol)
 {
 	real fac;
@@ -198,7 +196,7 @@ void ZeroSpacetimeCorr ()
 		for (nr = 0; nr < nFunCorr; nr ++) avDrTable[nr][j]= 0.;
 }
 void EvalOtherInformation () 
-{
+{   // this evaluation yield analysis.c
 #define Fqt_FIX_q avAcfST[3*(j) +2] 
 	int j,  n,  ppT, pT, cT, nT, nnT;
 	extern real kVal;
@@ -382,9 +380,13 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	 *-----------------------------------------------------------------------------*/
 	for (n=0; n<nCol; n++) {
 		col_i = &(snap->atoms[n]);
-		r[0] = col_i->x; r[0] = r[0] - L* floor(r[0]/L)- L/2.;  
-		r[1] = col_i->y; r[1] = r[1] - L* floor(r[1]/L)- L/2.;  
-		r[2] = col_i->z; r[2] = r[2] - L* floor(r[2]/L)- L/2.;  
+/* 		r[0] = col_i->x; r[0] = r[0] - L* floor(r[0]/L)- L/2.;  
+ * 		r[1] = col_i->y; r[1] = r[1] - L* floor(r[1]/L)- L/2.;  
+ * 		r[2] = col_i->z; r[2] = r[2] - L* floor(r[2]/L)- L/2.;  
+ */
+		r[0] = col_i->x; 
+		r[1] = col_i->y; 
+		r[2] = col_i->z; 
 		mu[0] = col_i->mux; mu[1]=col_i->muy; mu[2]=col_i->muz;
 		j = 0;
 		// 
@@ -486,6 +488,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 							if (nc == k) -- nv; // longitudinal 3*m
 							else w *= 0.5;
 						} else w = 1.;        // density   3*m+2
+						// cos(q*r(t)) cos(q*r(t_w) +sin sin
 						tBuf[nb].acfST[nv][tBuf[nb].count] +=
 							w * (valST[j] * tBuf[nb].orgST[j] +
 									valST[j + 1] * tBuf[nb].orgST[j + 1]);
