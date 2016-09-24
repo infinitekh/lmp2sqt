@@ -531,8 +531,9 @@ void Alloc_more (int  nCol) {
 		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
 
 		factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
-		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
-				rho0,g_Vol,shell_Vol,factorDr[nr]);
+/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
+ * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
+ */
 
 	}
 	

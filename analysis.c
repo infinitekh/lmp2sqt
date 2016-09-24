@@ -63,12 +63,15 @@ void FftComplex (Cmplx *a, int size);
 int main ( int argc, char **argv)
 {
 	Cmplx *work;
-	real *corrSum[nDataTypes], *corrSumSq[nDataTypes], damp, deltaT, deltaTCorr,
-			 omegaMax, tMax, w,x;
-	int doFourier,doWindow,j,k,n,nData,nFunCorr,nSet,nSetSkip,
+	real *corrSum[nDataTypes], *corrSumSq[nDataTypes], *corrSumErr[nDataTypes],
+			 damp, deltaT, deltaTCorr,
+			 omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
+	real valGamma, valDq, valSq;
+	int doFourier,doWindow;
+	int j,k,n,nT,nnT,cT,nData,nFunCorr,nSet,nSetSkip,
 			nv, nValCorr;
-	char *bp, *fName, buff[BUFF_LEN], *lmpFileName;
-	FILE *input;
+	char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
+	FILE *input, *output;
 	Snapshot* pSnap;
 /* 	int nDataTypes = sizeof(header);
  * 	int tempa      = sizeof(char*);
@@ -98,7 +101,7 @@ int main ( int argc, char **argv)
 	
 	if (argc >0) PrintHelp (argv[0]);
 	omegaMax = 10.;
-	tMax = 5.;
+	tMax = 100.;
 
 	if(!strcmp(fName,"-")) {
 		input = stdin;
@@ -122,13 +125,20 @@ int main ( int argc, char **argv)
 		NameVal (deltaT);
 		NameVal (nFunCorr);
 		NameVal (nValCorr);
+		NameVal (kVal);
 //		NameString (lmpFileName);
 	}
 	deltaTCorr =  deltaT;
+	kVal2 = kVal*kVal;
+
+	/*-----------------------------------------------------------------------------
+	 *   Alloc memory and initialization
+	 *-----------------------------------------------------------------------------*/
 	for (j = 0; j < nDataTypes; j ++) {
 		corrSum[j] = alloc_real(nFunCorr * nValCorr);
 
 		corrSumSq[j] = alloc_real( nFunCorr * nValCorr);
+		corrSumErr[j] = alloc_real( nFunCorr * nValCorr);
 		for (n =0; n < nFunCorr* nValCorr; n++) {
 			corrSum [j][n] = 0.;
 			corrSumSq [j][n] = 0.;
@@ -136,7 +146,8 @@ int main ( int argc, char **argv)
 	}
 
 	// The Preamble
-	work = alloc_Cmplx( 2 * (nValCorr -1));
+	if (doFourier)
+		work = alloc_Cmplx( 2 * (nValCorr -1));
 	nData =0;
 	nSet =0;
 	while (1) {
@@ -171,8 +182,11 @@ int main ( int argc, char **argv)
 		for ( n = 0; n < nFunCorr*nValCorr; n += 1 ) {
 			corrSum[j][n] /= nData;
 			corrSumSq[j][n] = sqrt ( corrSumSq[j][n]/nData-Sqr(corrSum[j][n]));
+			corrSumErr[j][n] =  corrSumSq[j][n]/ sqrt(nData);
 		}
 	}
+
+	
 	if (doFourier) {
 		
 		for ( j = 0; j < 3; j += 1 ) {
@@ -197,6 +211,30 @@ int main ( int argc, char **argv)
 	else {   // print A(q,t), or A(r,t)
 		for ( j = 0; j < nDataTypes; j += 1 ) {
 			if (scail[j] ){
+				/*-----------------------------------------------------------------------------
+				 *  D(q) ~ S(q) ~ or density and  spin longi,transverse
+				 *-----------------------------------------------------------------------------*/
+				sprintf( output_filename, "%s00.out", header[j] );
+				FILE *output = fopen( output_filename, "w");
+				fputs("#kVal Sq Gamma Dq\n", output);
+
+				for (k = 0; k < nFunCorr; k ++) {
+					qVal = (k+1)*kVal; qVal2=qVal*qVal;
+					cT= k*nValCorr; nnT = cT+2; nT = cT+1;    //Forward O(h^2) first Derivative
+					valSq    =   corrSum[j][cT];
+#define Xp2 log(corrSum[j][nnT])
+#define Xp1 log(corrSum[j][nT])
+#define X   log(corrSum[j][cT])
+//					valGamma =	 (-(corrSum[j][nnT]) +4.*(corrSum[j][nT]) -3.*(corrSum[j][cT]) )/ (2.0* deltaT*corrSum[j][cT]);
+					valGamma =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+//					valGamma =   ( (Xp1 - X ) / deltaT ) ;  // Forward O(h) first Derivative
+					valDq    = - valGamma / (qVal2) ;
+					fprintf( output, "%8.4e %8.4e %8.4e %8.4e %8.4e\n", qVal, valSq,valGamma,valDq, corrSumErr[j][cT]); 
+				}
+				fclose(output);
+				
+
+//      scaling by function of  t=0
 				for ( k = 0; k < nFunCorr; k += 1 ) {
 					for ( n = 1; n < nValCorr; n += 1 ) 
 						corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
