@@ -19,7 +19,7 @@
 #include "lmp2sqt_GrKu.h"
 #include "snapshot.h"
 
-
+#include <assert.h>
 
 #include<stdio.h>
 #include<string.h>
@@ -387,7 +387,9 @@ void EvalSpacetimeCorr(Snapshot* snap)
 		r[0] = col_i->x; 
 		r[1] = col_i->y; 
 		r[2] = col_i->z; 
-		mu[0] = col_i->mux; mu[1]=col_i->muy; mu[2]=col_i->muz;
+		mu[0] = col_i->mux; 
+		mu[1] = col_i->muy; 
+		mu[2] = col_i->muz;
 		j = 0;
 		// 
 		for (k = 0; k < 3; k ++) {
@@ -476,26 +478,31 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			 *-----------------------------------------------------------------------------*/
 			for (j = 0; j < 3 * nFunCorr; j ++)
 				tBuf[nb].acfST[j][tBuf[nb].count] = 0.;
-			j = 0;
-			for (k = 0; k < 3; k ++) {
-				for (m = 0; m < nFunCorr; m ++) {
-					for (nc = 0; nc < 4; nc ++) {
+
+			for (m = 0; m < nFunCorr; m ++) {
+				for (j = 0,k = 0; k < 3; k ++) { // 3 loop
+					for (nc = 0; nc < 4; nc ++) {  // 4 loop = total 12 loop jj
 						nv = 3 * m + 2;
 						if (nc < 3) {                       /*  */
 							//							w = Sqr (kVal * (m + 1));
 							w=1.0;
+							/*-----------------------------------------------------------------------------
+							 *  nv %3 = >> 0 - longitunidal, 1 - transverse, 2 - density 
+							 *-----------------------------------------------------------------------------*/
 							-- nv;              // transverse  3*m +1
 							if (nc == k) -- nv; // longitudinal 3*m
-							else w *= 0.5;
+							else w = 0.5;
+//							else w *= 0.5;
 						} else w = 1.;        // density   3*m+2
 						// cos(q*r(t)) cos(q*r(t_w) +sin sin
 						tBuf[nb].acfST[nv][tBuf[nb].count] +=
 							w * (valST[j] * tBuf[nb].orgST[j] +
 									valST[j + 1] * tBuf[nb].orgST[j + 1]);
 						j += 2;
-					}
-				}
-			}
+					} // for nc
+				}   // for k   // total 12 loop j+=2, 
+				assert( j== 24);
+			} // for m
 		}    // End buffer count >=0
 		++ tBuf[nb].count;
 	}
