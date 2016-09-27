@@ -435,6 +435,10 @@ int GetNameList (int argc, char **argv)
 		if (! match) ok = 0;
 	}
 	fclose (fp);
+	
+	if(nBuffCorr > nValCorr ) nBuffCorr = nValCorr;
+
+
 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 		if (nameList[k].vStatus != 1) ok = 0;
 	}
