@@ -16,10 +16,10 @@
  * =====================================================================================
  */
 
-#include "lmp2sqt.h"
+#include "lmp2sqt_GrKu.h"
 #include "snapshot.h"
 
-
+#include <assert.h>
 
 #include<stdio.h>
 #include<string.h>
@@ -29,9 +29,8 @@
 #include<math.h>
 #include"snapshot.h"
 
-#define FORW_DIFF(A,y)  ( -A[(y)+2] +4. *A[(y)+1] -3.* A[(y) ]  )   
-#define CENT_DIFF(A,y)  ( A[(y) +1] A[(y)-1]  )   
-#define BACK_DIFF(A,y)  ( A[(y) -2] A[(y)-1] A[(y)] )   
+
+#define DIM 3
 
 typedef enum {N_I, N_R} VType;
 typedef struct {
@@ -41,9 +40,9 @@ typedef struct {
 	int vLen, vStatus;
 } NameList;
 #define NameI(x)                      \
- {#x, &x, N_I, sizeof (x) / sizeof (int)}
+{#x, &x, N_I, sizeof (x) / sizeof (int)}
 #define NameR(x)                       \
-  {#x, &x, N_R, sizeof (x) / sizeof (real)}
+{#x, &x, N_R, sizeof (x) / sizeof (real)}
 
 typedef struct {
 	void *vPtr;
@@ -51,22 +50,23 @@ typedef struct {
 	int vLen;
 } ValList;
 #define ValI(x)    \
- {&x, N_I, sizeof (x) / sizeof (int)}
+{&x, N_I, sizeof (x) / sizeof (int)}
 #define ValR(x)    \
-  {&x, N_R, sizeof (x) / sizeof (real)}
+{&x, N_R, sizeof (x) / sizeof (real)}
 
 #define NP_I        \
- ((int *) (nameList[k].vPtr) + j)
+	((int *) (nameList[k].vPtr) + j)
 #define NP_R         \
-	 ((real *) (nameList[k].vPtr) + j)
+	((real *) (nameList[k].vPtr) + j)
 
 NameList nameList[] = {
+	NameR   (rVal),
 	NameR    (kVal),
 	NameR    (deltaT),
 	NameI   		(limitCorrAv),
-	NameI 	(nBuffCorr), // number of simul. time seq
-	NameI 	(nFunCorr),  // number of spatial seq
-	NameI 	(nValCorr)   // number of time seq
+	NameI   (nBuffCorr),       // number of simul. time seq
+	NameI   (nFunCorr),        // number of spatial seq
+	NameI   (nValCorr)         // number of time seq
 };
 
 void PrintNameList (FILE *fp);
@@ -74,22 +74,13 @@ int GetNameList (int argc, char **argv);
 
 int main(int argc, char** argv) {
 	char filename[100];
-	int lowcut;
-	int highcut;
 	int n_snap;
-	int n;
-	int i,id,bin;
-	int iii,jjj,kkk;
-	atom* atoms, *ppi;
-		FILE* fp_out;
 	if(argc <2) {
 		perror("#run inputfilename");
 		return 1;
 	}
 	GetNameList(argc,argv);
-	PrintNameList(stdout);
 
-	int maxAtom =0;
 
 	AllocArray();
 	InitSpacetimeCorr();
@@ -98,18 +89,23 @@ int main(int argc, char** argv) {
 	FILE* fp = fopen( filename ,"r");
 	Snapshot* snap;
 	n_snap = 0;	
+
+	// kVal value have be changed because reciprocal information
+	snap = read_dump(fp);
+	Init_reciprocal_space(snap);
+	rewind(fp);
+	PrintNameList(stdout);
+
 	while(1) {
 		snap =	read_dump(fp);
-		
+
 		if (snap == NULL)
 			break;
 
 		EvalSpacetimeCorr(snap);
+
 		free_Snapshot(snap);
-		n_snap++;
-		/* 			free(snap->atoms);
-		 * 			free(snap);
-		 */
+		n_snap++; 
 	}
 
 	if (n_snap <5){
@@ -122,19 +118,35 @@ int main(int argc, char** argv) {
 
 void AccumSpacetimeCorr ( int nCol)
 {
-	int j, n, nb;
+	real fac;
+	int j,  nb, nr, n;
 	for (nb = 0; nb < nBuffCorr; nb ++) {
 		if (tBuf[nb].count == nValCorr) {
+			// S(q,t), M(q,t) part
 			for (j = 0; j < 3 * nFunCorr; j ++) {
 				for (n = 0; n < nValCorr; n ++)
 					avAcfST[j][n] += tBuf[nb].acfST[j][n];
 			}
+			// Diffuse Part
+			for (j = 0; j < nValCorr; j ++) {
+				rrDiffuseAv[j] += tBuf[nb].rrDiffuse[j];
+				for ( nr=0; nr<nFunCorr; nr++) 
+					avDrTable[nr][j] += tBuf[nb].DrTable[nr][j];
+			}
+			// buffer nb reset
 			tBuf[nb].count = 0;
 			++ countCorrAv;
 			if (countCorrAv == limitCorrAv) {
 				for (j = 0; j < 3 * nFunCorr; j ++) {
 					for (n = 0; n < nValCorr; n ++)
 						avAcfST[j][n] /= 3. * nCol * limitCorrAv;
+				}
+
+				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
+				for (j = 1; j < nValCorr; j ++) {
+					rrDiffuseAv[j] *= fac/ j;
+					for ( nr=0; nr<nFunCorr; nr++) 
+						avDrTable[nr][j] *= factorDr[nr];
 				}
 				PrintSpacetimeCorr (stdout);
 				ZeroSpacetimeCorr ();
@@ -147,20 +159,32 @@ void AccumSpacetimeCorr ( int nCol)
 void InitSpacetimeCorr ()
 {
 	int nb;
-	for (nb = 0; nb < nBuffCorr; nb ++)
+	if (nBuffCorr > nValCorr) {
+		fputs("Error nBuffCorr> nValCorr", stderr);
+		exit(1);
+	}
+
+	for (nb = 0; nb < nBuffCorr; nb ++){
 		tBuf[nb].count = - nb * nValCorr / nBuffCorr;
+		tBuf[nb].countDiff = - nb * nValCorr / nBuffCorr;
+	}
 	ZeroSpacetimeCorr ();
 }
 void ZeroSpacetimeCorr ()
 {
-	int j, n;
+	int j, n, nr;
 	countCorrAv = 0;
 	for (j = 0; j < 3 * nFunCorr; j ++) {
 		for (n = 0; n < nValCorr; n ++) avAcfST[j][n] = 0.;
 	}
+
+	countDiffuseAv = 0;
+	for (j = 0; j < nValCorr; j ++) rrDiffuseAv[j] = 0.;
+	for (j = 0; j < nValCorr; j ++) 
+		for (nr = 0; nr < nFunCorr; nr ++) avDrTable[nr][j]= 0.;
 }
 void EvalOtherInformation () 
-{
+{                            // this evaluation yield analysis.c
 #define Fqt_FIX_q avAcfST[3*(j) +2] 
 	int j,  n,  ppT, pT, cT, nT, nnT;
 	extern real kVal;
@@ -191,9 +215,9 @@ void EvalOtherInformation ()
 void PrintSpacetimeCorr (FILE *fp)
 {
 	extern real kVal;
-	int j, k, n, k2;
-	char *header[] = {"cur-long", "cur-trans", "density", 
-		  "gamma_qt", "Dqt"};
+	real tVal;
+	int j, k, n, k2, nr;
+	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
 	fprintf (fp, "space-time corr\n");
 	//for (k = 0; k < 3; k ++) {
 	for (k2 = 0; k2 < sizeof(header)/ sizeof(char*); k2 ++) {
@@ -204,8 +228,8 @@ void PrintSpacetimeCorr (FILE *fp)
 		 * 		fprintf (fp, "\n");
 		 */
 
-		EvalOtherInformation ();
-		fprintf (fp, "# %s %7.3f %7.3f\n", header[k2] , kVal, 1.0*deltaT);
+		//    EvalOtherInformation ();
+		fprintf (fp, "# %s %7.3f %7.3f %7.3f\n", header[k2] , kVal, 1.0*deltaT, rVal);
 		switch ( k2) {
 			case 0: case 1: case 2: 
 				/*-----------------------------------------------------------------------------
@@ -216,14 +240,17 @@ void PrintSpacetimeCorr (FILE *fp)
 					 * 			fprintf (fp, "%7.3f", deltaT);
 					 */
 					for (j = 0; j < nFunCorr; j ++)
-						fprintf (fp, " %8.4f", avAcfST[3 * j + k][n]);
+						fprintf (fp, " %8.4e", avAcfST[3 * j + k][n]);
 					fprintf (fp, "\n");
 				} 
 				break;
-			case 3:                                   /* gamma_qt */
-				for (n = 0; n < nValCorr; n ++) {   
-					for (j = 0; j < nFunCorr; j ++)
-						fprintf (fp, " %8.4f", valDqt[j][n]);
+			case 3:                /* gamma_qt */
+				//        fprintf (fp, "#van Hove function\n");
+
+				for (j = 0; j < nValCorr; j ++) {
+					for ( nr=0; nr<nFunCorr; nr++)  {
+						fprintf (fp, " %8.4e", avDrTable[nr][j] );
+					}
 					fprintf (fp, "\n");
 				}
 				break;
@@ -231,36 +258,79 @@ void PrintSpacetimeCorr (FILE *fp)
 		fprintf (fp, "\n");
 	}
 
-	char filename1[100] ="Dq00.info" ;
-	char filename2[100] ="Ft00.info" ;
+	//  char filename1[100] ="Dq00.info" ;
+	//  char filename2[100] ="Ft00.info" ;
+	char filename1[100] ="Dt00.info" ;
+	char filename2[100] ="vanHove00.info" ;
+	char filename3[100] ="SSF00.info" ;
 	int nfile = 0;
-	while( 0 == (access(filename1,F_OK))+(access(filename1,F_OK))) {
+	while( 0 == (access(filename1,F_OK))+(access(filename2,F_OK))+(access(filename3,F_OK))) {
 		nfile++;
-		sprintf(filename1, "Dq%02d.info",nfile);
-		sprintf(filename2, "Ft%02d.info",nfile);
+		sprintf(filename1, "Dt%02d.info",nfile);
+		sprintf(filename2, "vanHove%02d.info",nfile);
+		sprintf(filename3, "SSF%02d.info",nfile);
 	}
-	FILE* fp_Dq = fopen(filename1,"w");
-	FILE* fp_Ft = fopen(filename2,"w");
 
-	fprintf (fp_Dq, "# dt = %7.3f\n", deltaT);
-	fprintf (fp_Ft, "# dq = %7.3e\n", kVal);
+	/* 	FILE* fp_Dq = fopen(filename1,"w");
+	 * 	fprintf (fp_Dq, "# dt = %7.3f\n", deltaT);
+	 * 	for (j = 0; j < nFunCorr; j ++) {
+	 * 		fprintf (fp_Dq, "%8.4f" , j*kVal );
+	 * 		for (n = 1; n < nValCorr; n ++) {   
+	 * 			fprintf (fp_Dq, " %8.4e" ,  valDqt[j][n]);
+	 * 		}
+	 * 		fprintf (fp_Dq, "\n");
+	 * 	}
+	 * 	fclose(fp_Dq);
+	 */
+
+	/* 	FILE* fp_Ft = fopen(filename2,"w");
+	 * 	fprintf (fp_Ft, "# dq = %7.3e\n", kVal);
+	 * 	for (n = 0; n < nValCorr; n ++) {   
+	 * 		fprintf (fp_Ft, "%8.4f" , n*deltaT );
+	 * 		for (j = 0; j < nFunCorr; j ++) {
+	 * 			fprintf (fp_Ft, " %8.4e" ,  avAcfST[(3*j)+2][n]/avAcfST[(3*j)+2][0]);
+	 * 		}
+	 * 		fprintf (fp_Ft, "\n");
+	 * 	}
+	 * 	fclose(fp_Ft);
+	 */
+
+	FILE* fp_SSF = fopen(filename3,"w");
+	n=0;
 	for (j = 0; j < nFunCorr; j ++) {
-		fprintf (fp_Dq, "%8.4f" , j*kVal );
-		for (n = 1; n < nValCorr; n ++) {   
-			fprintf (fp_Dq, " %8.4f" ,  valDqt[j][n]);
-		}
-		fprintf (fp_Dq, "\n");
+		fprintf (fp_SSF, "%8.4f" " %8.4e""\n" , (j+1)*kVal , avAcfST[(3*j)+2][0]);
 	}
-	for (n = 0; n < nValCorr; n ++) {   
-		fprintf (fp_Ft, "%8.4f" , n*kVal );
-		for (j = 0; j < nFunCorr; j ++) {
-			fprintf (fp_Ft, " %8.4f" ,  avAcfST[(3*j)+2][n]/avAcfST[(3*j)+2][0]);
-		}
-		fprintf (fp_Ft, "\n");
+	fclose(fp_SSF);
+
+	//  fprintf (fp_SSF, "# dq = %7.3e\n", kVal);
+
+
+
+
+	FILE* fp_Dt = fopen(filename1,"w");
+	fprintf (fp_Dt, "#diffusion\n");
+
+	for ( j = 0; j < nValCorr; j += 1 ) {
+		tVal = j * deltaT;
+		fprintf (fp_Dt, "%8.4f %8.4f %8.4f\n", tVal, rrDiffuseAv[j] , tVal*rrDiffuseAv[j]); 
 	}
-	
-	fclose(fp_Dq);
-	fclose(fp_Ft);
+	fclose(fp_Dt); 
+
+	/*-----------------------------------------------------------------------------
+	 *  van Hove function part
+	 *-----------------------------------------------------------------------------*/
+	/* 	fprintf (fp_Gr, "#van Hove function\n");
+	 * 	FILE* fp_Gr = fopen(filename2,"w");
+	 * 	
+	 * 	for ( nr=0; nr<nFunCorr; nr++)  {
+	 * 		for (j = 0; j < nValCorr; j ++) {
+	 * 			fprintf (fp_Gr, " %8.4e", avDrTable[nr][j] );
+	 * 		}
+	 * 		fprintf (fp_Gr, "\n");
+	 * 	}
+	 * 	fprintf (fp_Gr, "\n");
+	 * 	fclose(fp_Gr);
+	 */
 
 }
 
@@ -268,23 +338,52 @@ void EvalSpacetimeCorr(Snapshot* snap)
 {
 	real b, c, c0, c1, c2, s, s1, s2, w;
 	extern real kVal;
-	int j, k, m, n, nb, nc, ni, nv;
-	real r[3];
-	for (j = 0; j < 24 * nFunCorr; j ++) valST[j] = 0.;
+	int j, k, m, n, nb, nc, ni, nv, nr;
+	real r[3], mu[3];          // L[3];
 
+	VecR3 dr;
+	real deltaR;
+	int i_Dr;
 	real L = snap->box.xhigh- snap->box.xlow;
-
+	g_Vol  = L*L*L;
 	int nCol = snap->n_atoms;
+	static int first_run = 0;
+	if (first_run ==0 ) 
+		Alloc_more(nCol);
+	first_run = 1;
 	atom* col_i;
-//	kVal = 2. * M_PI / nFunCorr;
+	// zero initalize current time value
+	for (j = 0; j < 24 * nFunCorr; j ++) valST[j] = 0.;
+	// we assume L0=L1 = L2 
+	/* 	L[0] = snap->box.xhigh- snap->box.xlow;
+	 * 	L[1] = snap->box.yhigh- snap->box.ylow;
+	 * 	L[2] = snap->box.zhigh- snap->box.zlow;
+	 */
+	kVal = 2.*M_PI / L;
+
+	//  kVal = 2. * M_PI / nFunCorr;
+	//  Begin Calculatie current time information
+	/*-----------------------------------------------------------------------------
+	 *  Direct calculate  rho(q)
+	 *-----------------------------------------------------------------------------*/
 	for (n=0; n<nCol; n++) {
 		col_i = &(snap->atoms[n]);
-		r[0] = col_i->x; r[1] = col_i->y; r[2] = col_i->z;
+		/* 		r[0] = col_i->x; r[0] = r[0] - L* floor(r[0]/L)- L/2.;  
+		 * 		r[1] = col_i->y; r[1] = r[1] - L* floor(r[1]/L)- L/2.;  
+		 * 		r[2] = col_i->z; r[2] = r[2] - L* floor(r[2]/L)- L/2.;  
+		 */
+		r[0] = col_i->x; 
+		r[1] = col_i->y; 
+		r[2] = col_i->z; 
+		mu[0] = col_i->mux; 
+		mu[1] = col_i->muy; 
+		mu[2] = col_i->muz;
 		j = 0;
+		// 
 		for (k = 0; k < 3; k ++) {
 			for (m = 0; m < nFunCorr; m ++) {
 				if (m == 0) {
-					b = kVal * (r[k]);
+					b = kVal * r[k];
 					c = cos (b);
 					s = sin (b);
 					c0 = c;
@@ -301,47 +400,98 @@ void EvalSpacetimeCorr(Snapshot* snap)
 					c = 2. * c0 * c1 - c2;
 					s = 2. * c0 * s1 - s2;
 				}
-				valST[j ++] += col_i->mux * c;
-				valST[j ++] += col_i->mux * s;
-				valST[j ++] += col_i->muy * c;
-				valST[j ++] += col_i->muy * s;
-				valST[j ++] += col_i->muz * c;
-				valST[j ++] += col_i->muz * s;
+				valST[j ++] += mu[0] * c;
+				valST[j ++] += mu[0] * s;
+				valST[j ++] += mu[1] * c;
+				valST[j ++] += mu[1] * s;
+				valST[j ++] += mu[2] * c;
+				valST[j ++] += mu[2] * s;
 				valST[j ++] += c;
 				valST[j ++] += s;
 			}
 		}
 	}
-	//End Evaluation current time valST 
-	//Begin Calculation Two time correlation
+	// End Calculate Current time value
+	// Begin Two time corrlation function
 	for (nb = 0; nb < nBuffCorr; nb ++) {
-		if (tBuf[nb].count == 0) {                  /* val[t=0] setting */
+		if (tBuf[nb].count == 0) {
+			/*-----------------------------------------------------------------------------
+			 *   t_w information 
+			 *-----------------------------------------------------------------------------*/
+			for (n=0; n<nCol; n++) {
+				col_i = &(snap->atoms[n]);
+				tBuf[nb].orgR[n].x = col_i->x;
+				tBuf[nb].orgR[n].y = col_i->y;
+				tBuf[nb].orgR[n].z = col_i->z;
+				tBuf[nb].rTrue[n].x = col_i->x;
+				tBuf[nb].rTrue[n].y = col_i->y;
+				tBuf[nb].rTrue[n].z = col_i->z;
+			}
 			for (j = 0; j < 24 * nFunCorr; j ++)
 				tBuf[nb].orgST[j] = valST[j];
-		}
-		if (tBuf[nb].count >= 0) {                  /* C[tn][0] */
-			for (j = 0; j < 3 * nFunCorr; j ++)       /* 3 axis correlation */
+		}                        // End   buffer count ==0
+
+		if (tBuf[nb].count >= 0) {
+			/*-----------------------------------------------------------------------------
+			 *  Get Delta_r(t)
+			 *-----------------------------------------------------------------------------*/
+			ni = tBuf[nb].count;
+			/*-----------------------------------------------------------------------------
+			 *  Zero initializing
+			 *-----------------------------------------------------------------------------*/
+			tBuf[nb].rrDiffuse[ni]= 0.;
+			for ( nr=0; nr<nFunCorr; nr++) 
+				tBuf[nb].DrTable[nr][ni] =0;
+
+			/*-----------------------------------------------------------------------------
+			 *  Calculation at this time
+			 *-----------------------------------------------------------------------------*/
+
+			for (n=0; n<nCol; n++) {
+				col_i = &(snap->atoms[n]);
+				dr.x =  col_i->x-tBuf[nb].orgR[n].x ;
+				dr.y =  col_i->y-tBuf[nb].orgR[n].y ;
+				dr.z =  col_i->z-tBuf[nb].orgR[n].z ;
+				deltaR = sqrt(dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
+				//tBuf[nb].rrDiffuse[ni] += deltaR;     /* 이부분을 잘못함... */
+				tBuf[nb].rrDiffuse[ni] += deltaR*deltaR;
+
+				i_Dr    = (int) (deltaR/rVal);
+				if (i_Dr<nFunCorr)
+					tBuf[nb].DrTable[i_Dr][ni] ++;
+			}
+
+			/*-----------------------------------------------------------------------------
+			 *  two time correlation 
+			 *-----------------------------------------------------------------------------*/
+			for (j = 0; j < 3 * nFunCorr; j ++)
 				tBuf[nb].acfST[j][tBuf[nb].count] = 0.;
-			j = 0;
-			for (k = 0; k < 3; k ++) {
+
+			for (j = 0,k = 0; k < 3; k ++) { // 3 loop
 				for (m = 0; m < nFunCorr; m ++) {
-					for (nc = 0; nc < 4; nc ++) {
+					for (nc = 0; nc < 4; nc ++) {  
 						nv = 3 * m + 2;
-						if (nc < 3) {
-							//							w = Sqr (kVal * (m + 1));
+						if (nc < 3) {    /*  */
+							//              w = Sqr (kVal * (m + 1));
 							w=1.0;
-							-- nv;
-							if (nc == k) -- nv;
-							else w *= 0.5;
-						} else w = 1.;
+							/*-----------------------------------------------------------------------------
+							 *  nv %3 = >> 0 - longitunidal, 1 - transverse, 2 - density 
+							 *-----------------------------------------------------------------------------*/
+							-- nv;         // transverse  3*m +1
+							if (nc == k) -- nv; // longitudinal 3*m
+							else w = 0.5;
+							//              else w *= 0.5;
+						} else w = 1.;   // density   3*m+2
+						// cos(q*r(t)) cos(q*r(t_w) +sin sin
 						tBuf[nb].acfST[nv][tBuf[nb].count] +=
 							w * (valST[j] * tBuf[nb].orgST[j] +
 									valST[j + 1] * tBuf[nb].orgST[j + 1]);
 						j += 2;
-					}
-				}
-			}
-		}
+					}                  // for nc
+				}                    // for m
+			}                      // for k   // total 12 loop j+=2, 
+			assert( j== 24*nFunCorr);
+		}                        // End buffer count >=0
 		++ tBuf[nb].count;
 	}
 	AccumSpacetimeCorr (nCol );
@@ -359,11 +509,38 @@ void AllocArray ()
 		AllocMem (tBuf[nb].orgST, 24 * nFunCorr, real);
 		AllocMem2 (tBuf[nb].acfST, 3 * nFunCorr, nValCorr, real);
 	}
+	// AllocArray for Diffuse ()
+	AllocMem (rrDiffuseAv, nValCorr, real);
+	AllocMem2 (avDrTable, nFunCorr,nValCorr, real);
 }
+void Alloc_more (int  nCol) {
+	int nb,nr; real rho0, shell_Vol;
+	for (nb = 0; nb < nBuffCorr; nb ++) {
+		AllocMem (tBuf[nb].orgR, nCol, VecR3);
+		AllocMem (tBuf[nb].rTrue, nCol,VecR3);
+		AllocMem (tBuf[nb].rrDiffuse, nValCorr, real);
+		AllocMem2 (tBuf[nb].DrTable, nFunCorr,nValCorr, int);
+	}
+	AllocMem (factorDr, nFunCorr, real);
+
+	rho0 = nCol/g_Vol;
+	for (nr = 0; nr < nFunCorr; nr ++) {
+		if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
+		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
+
+		factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
+		/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
+		 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
+		 */
+
+	}
+
+}
+
 
 int GetNameList (int argc, char **argv)
 {
-	int id, j, k, match, ok;
+	int  j, k, match, ok;
 	char buff[80], *token;
 	FILE *fp;
 	strcpy (buff, argv[0]);
@@ -435,9 +612,8 @@ int GetNameList (int argc, char **argv)
 		if (! match) ok = 0;
 	}
 	fclose (fp);
-	
-	if(nBuffCorr > nValCorr ) nBuffCorr = nValCorr;
 
+	if(nBuffCorr > nValCorr ) nBuffCorr = nValCorr;
 
 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 		if (nameList[k].vStatus != 1) ok = 0;
@@ -484,3 +660,33 @@ void PrintNameList (FILE *fp)
 	fprintf (fp, "----\n");
 }
 
+void Init_reciprocal_space(Snapshot * snap) {
+	/*-----------------------------------------------------------------------------
+	 *  원래는 delta_k 값이 2pi/L보다 작을시에 simulation 박스를 복사하여 
+	 *  replica를 포함하는 공간에 대해서 계산하는 식으로 하려고 하였으나 
+	 *  복소평면 상에서 그려보았을 때 전부 더하면 0이 되는 관계로 
+	 *  더이상 구할 수 없고 아무 의미 없음이 확인하었다. 
+	 *  periodic boundary라 아닐 때는 상관없이 좋은 결과를 낼 수 있을 것이다. 
+	 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
+	 *-----------------------------------------------------------------------------*/
+	extern real kVal;
+	int n_mul;
+	// zero initalize current time value
+	// we assume L0=L1 = L2 
+	L[0] = snap->box.xhigh- snap->box.xlow;
+	L[1] = snap->box.yhigh- snap->box.ylow;
+	L[2] = snap->box.zhigh- snap->box.zlow;
+
+	/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+	 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
+	 * 			j=0;
+	 * 			p_kVal = NP_R;
+	 * 		}
+	 * 	}
+	 * 	printf( "kVal %p kValp %p\n", &kVal, p_kVal);
+	 */
+
+	n_mul = kVal/ (2.*M_PI/ L[0] );
+	if (n_mul <=0) n_mul =1;
+	kVal = (2.*M_PI/L[0]) * n_mul;
+}

@@ -22,6 +22,9 @@ typedef double real;
 typedef struct {
 	real R, I;
 } Cmplx;
+typedef struct { 
+	real x,y,z;
+} VecR3;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,6 +38,7 @@ ALLOC(double);
 ALLOC(real);
 ALLOC(int);
 ALLOC(Cmplx);
+ALLOC(VecR3);
 #define CSet(a, x, y) a.R = x, a.I = y
 #define CAdd(a, b, c) a.R = b.R + c.R, a.I = b.I + c.I
 #define CSub(a, b, c) a.R = b.R - c.R, a.I = b.I - c.I
@@ -54,8 +58,9 @@ ALLOC(Cmplx);
 	a.R = x,																							\
 	a.I = y
 #define BUFF_LEN 1024
-char *header[]= {"cur-long", "cur-trans", "densty"},
-		 *txtCorr = "space-time corr";
+/* char *header[]= {"cur-long", "cur-trans", "densty"},
+ * 		 *txtCorr = "space-time corr";
+ */
 void* unused_pointer;
 int ununused_value;
 #define AllocMem(a, n, t)                       \
@@ -66,24 +71,36 @@ AllocMem (a[0], (n1) * (n2), t);                     \
 for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_value] = a[ununused_value - 1] + n2;
 
 
+void Init_reciprocal_space(Snapshot * snap);
+
 void ZeroSpacetimeCorr ();
 void InitSpacetimeCorr ();
 void EvalOtherInformation ();
 void PrintSpacetimeCorr (FILE *fp);
 void EvalSpacetimeCorr (Snapshot * snap);
 void AllocArray();
+void Alloc_more(int);
 void AccumSpacetimeCorr (int nMol);
-real kVal, deltaT;
+real kVal, deltaT, rVal, g_Vol;
 
 typedef struct {
 	real **acfST, *orgST;
+	VecR3 *orgR, *rTrue;
+	// VecR3 *orgVel; real *acfVel;
+	real *rrDiffuse;
+	int **DrTable;
 	int count;
+	int countDiff;
 } TBuf;
 
 TBuf *tBuf;
 real **avAcfST, *valST, **valDqt, **valGammaQT;
-int countCorrAv, limitCorrAv, nBuffCorr, nFunCorr, nValCorr,
-		stepCorr;
+	real **avDrTable;
+	real *factorDr;
+int countCorrAv, limitCorrAv, nBuffCorr, nFunCorr, nValCorr;
+real *rrDiffuseAv;
+int countDiffuseAv;
 
+real g_L;    // only used cubic simulation box case
 
 #endif
