@@ -16,7 +16,7 @@
  * =====================================================================================
  */
 
-#include "lmp2sqt_GrKu.h"
+#include "lmp2sqt.h"
 #include "snapshot.h"
 
 #include <assert.h>
@@ -342,7 +342,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	real r[3], mu[3];          // L[3];
 
 	VecR3 dr;
-	real deltaR;
+	real deltaR2;
 	int i_Dr;
 	real L = snap->box.xhigh- snap->box.xlow;
 	g_Vol  = L*L*L;
@@ -423,9 +423,6 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				tBuf[nb].orgR[n].x = col_i->x;
 				tBuf[nb].orgR[n].y = col_i->y;
 				tBuf[nb].orgR[n].z = col_i->z;
-				tBuf[nb].rTrue[n].x = col_i->x;
-				tBuf[nb].rTrue[n].y = col_i->y;
-				tBuf[nb].rTrue[n].z = col_i->z;
 			}
 			for (j = 0; j < 24 * nFunCorr; j ++)
 				tBuf[nb].orgST[j] = valST[j];
@@ -452,11 +449,11 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				dr.x =  col_i->x-tBuf[nb].orgR[n].x ;
 				dr.y =  col_i->y-tBuf[nb].orgR[n].y ;
 				dr.z =  col_i->z-tBuf[nb].orgR[n].z ;
-				deltaR = sqrt(dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
-				//tBuf[nb].rrDiffuse[ni] += deltaR;     /* 이부분을 잘못함... */
-				tBuf[nb].rrDiffuse[ni] += deltaR*deltaR;
+				deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
 
-				i_Dr    = (int) (deltaR/rVal);
+				tBuf[nb].rrDiffuse[ni] += deltaR2;
+
+				i_Dr    = (int) (sqrt(deltaR2)/rVal);
 				if (i_Dr<nFunCorr)
 					tBuf[nb].DrTable[i_Dr][ni] ++;
 			}
@@ -464,9 +461,10 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			/*-----------------------------------------------------------------------------
 			 *  two time correlation 
 			 *-----------------------------------------------------------------------------*/
+			//acfST 0 initialization
 			for (j = 0; j < 3 * nFunCorr; j ++)
-				tBuf[nb].acfST[j][tBuf[nb].count] = 0.;
-
+				tBuf[nb].acfST[j][ni] = 0.;
+			// add AcfST
 			for (j = 0,k = 0; k < 3; k ++) { // 3 loop
 				for (m = 0; m < nFunCorr; m ++) {
 					for (nc = 0; nc < 4; nc ++) {  
@@ -483,14 +481,16 @@ void EvalSpacetimeCorr(Snapshot* snap)
 							//              else w *= 0.5;
 						} else w = 1.;   // density   3*m+2
 						// cos(q*r(t)) cos(q*r(t_w) +sin sin
-						tBuf[nb].acfST[nv][tBuf[nb].count] +=
+						tBuf[nb].acfST[nv][ni] +=
 							w * (valST[j] * tBuf[nb].orgST[j] +
 									valST[j + 1] * tBuf[nb].orgST[j + 1]);
 						j += 2;
-					}                  // for nc
-				}                    // for m
-			}                      // for k   // total 12 loop j+=2, 
-			assert( j== 24*nFunCorr);
+					}  // for nc, total j+=8
+					assert ( j%8 ==0);
+				}    // for m , total j+=8*nFunCorr
+				assert (j%(8*nFunCorr)==0);
+			}      // for k , total j+=3*8*nFunCorr
+			assert( j== 3 * 8 *nFunCorr);
 		}                        // End buffer count >=0
 		++ tBuf[nb].count;
 	}
@@ -500,7 +500,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 void AllocArray ()
 {
 	int nb;
-	AllocMem (valST, 24 * nFunCorr, real);
+	AllocMem (valST, 3 * 8 * nFunCorr, real);
 	AllocMem2 (avAcfST, 3 * nFunCorr, nValCorr, real);
 	AllocMem2 (valDqt,  nFunCorr, nValCorr, real);
 	AllocMem2 (valGammaQT,  nFunCorr, nValCorr, real);
@@ -517,7 +517,6 @@ void Alloc_more (int  nCol) {
 	int nb,nr; real rho0, shell_Vol;
 	for (nb = 0; nb < nBuffCorr; nb ++) {
 		AllocMem (tBuf[nb].orgR, nCol, VecR3);
-		AllocMem (tBuf[nb].rTrue, nCol,VecR3);
 		AllocMem (tBuf[nb].rrDiffuse, nValCorr, real);
 		AllocMem2 (tBuf[nb].DrTable, nFunCorr,nValCorr, int);
 	}
@@ -671,6 +670,7 @@ void Init_reciprocal_space(Snapshot * snap) {
 	 *-----------------------------------------------------------------------------*/
 	extern real kVal;
 	int n_mul;
+	real L[3];
 	// zero initalize current time value
 	// we assume L0=L1 = L2 
 	L[0] = snap->box.xhigh- snap->box.xlow;

@@ -51,7 +51,7 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 	x = strtod (bp, &bp);                \
 }
 
-#define BUFF_LEN 1024
+#define BUFF_LEN 4096
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
 int  type[]    = { 1,   1,  1,  0 };
 int  scail[]    = { 1,   1,  1,  0 };
@@ -68,8 +68,9 @@ int main ( int argc, char **argv)
 			 omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
 	real valGamma, valDq, valSq;
 	int doFourier,doWindow;
-	int j,k,n,nT,nnT,cT,nData,nFunCorr,nSet,nSetSkip,
-			nv, nValCorr;
+	int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
+	int nData,nFunCorr,nSet,nSetSkip,
+			nv, nValCorr, NValDiff;
 	char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 	FILE *input, *output;
 	Snapshot* pSnap;
@@ -102,6 +103,7 @@ int main ( int argc, char **argv)
 	if (argc >0) PrintHelp (argv[0]);
 	omegaMax = 10.;
 	tMax = 100.;
+	NValDiff = 6;
 
 	if(!strcmp(fName,"-")) {
 		input = stdin;
@@ -142,6 +144,7 @@ int main ( int argc, char **argv)
 		for (n =0; n < nFunCorr* nValCorr; n++) {
 			corrSum [j][n] = 0.;
 			corrSumSq [j][n] = 0.;
+			corrSumErr [j][n] = 0.;
 		}
 	}
 
@@ -159,19 +162,27 @@ int main ( int argc, char **argv)
 			++ nData;
 			for ( j =0; j < nDataTypes; j++) {
 				bp = fgets (buff, BUFF_LEN, input); // header types check(not completed)
-				printf(" header check : %s \n", buff);
+				printf("## header check : %s \n", buff);
 				
 				for ( n =0; n<nValCorr; n ++) {
 					bp = fgets (buff, BUFF_LEN, input);
-
+#ifndef NDEBUG
+				puts(buff);
+#endif
 					for ( k = 0; k < nFunCorr; k += 1 ) {
 						w = strtod (bp, &bp);
+#ifndef NDEBUG
+				printf(" %8.4f",w);
+#endif
 						corrSum[j][k * nValCorr + n] += w;
 						corrSumSq[j][k * nValCorr + n] += Sqr(w);
 					}
+#ifndef NDEBUG
+					puts("\n");
+#endif
 				}
 					bp = fgets (buff, BUFF_LEN, input);// null line
-					printf(" endline null string default : %s \n", buff);
+					printf("## endline null string default : %s \n", buff);
 			}
 		}
 	}
@@ -216,18 +227,27 @@ int main ( int argc, char **argv)
 				 *-----------------------------------------------------------------------------*/
 				sprintf( output_filename, "%s00.out", header[j] );
 				FILE *output = fopen( output_filename, "w");
-				fputs("#kVal Sq Gamma Dq\n", output);
+				fprintf(output,"#kVal Sq Gamma Dq\n"
+						           "#deltaT = %9.4f\n", deltaT);
 
 				for (k = 0; k < nFunCorr; k ++) {
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
-					cT= k*nValCorr; nnT = cT+2; nT = cT+1;    //Forward O(h^2) first Derivative
-					valSq    =   corrSum[j][cT];
-#define Xp2 log(corrSum[j][nnT])
-#define Xp1 log(corrSum[j][nT])
-#define X   log(corrSum[j][cT])
+					cT= k*nValCorr+NValDiff; nnT = cT+2; nT = cT+1; nnnT=cT+3;   //Forward first Derivative
+					ppT = cT-2; pT = cT-1; pppT=cT-3;   //central first Derivative
+					valSq    =   corrSum[j][k*nValCorr];
+#define Xm3 (log(corrSum[j][pppT]))
+#define Xm2 (log(corrSum[j][ppT]))
+#define Xm1 (log(corrSum[j][pT]) )
+#define Xp3 (log(corrSum[j][nnnT]))
+#define Xp2 (log(corrSum[j][nnT]))
+#define Xp1 (log(corrSum[j][nT]) )
+#define X   (log(corrSum[j][cT]) )
 //					valGamma =	 (-(corrSum[j][nnT]) +4.*(corrSum[j][nT]) -3.*(corrSum[j][cT]) )/ (2.0* deltaT*corrSum[j][cT]);
-					valGamma =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+//					valGamma =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 //					valGamma =   ( (Xp1 - X ) / deltaT ) ;  // Forward O(h) first Derivative
+//					valGamma = (-11.*X + 18.*Xp1-9.*Xp2+2.*Xp3)/ ( 6.*deltaT);// F O(h^3)
+					valGamma =  (-Xp2+ 8.*Xp1 - 8.*Xm1 + Xm2)/ (12.*deltaT); // Cetral O(h^4)
+//					valGamma  =    
 					valDq    = - valGamma / (qVal2) ;
 					fprintf( output, "%8.4e %8.4e %8.4e %8.4e %8.4e\n", qVal, valSq,valGamma,valDq, corrSumErr[j][cT]); 
 				}
@@ -252,10 +272,10 @@ int main ( int argc, char **argv)
 		for (n=0; n < nv; n++) {
 			if (doFourier) x = n * omegaMax / nv;
 			else x = n * deltaTCorr;
-			printf ( "%9.4f", x);
+			printf ( "%9.4e", x);
 			
 			for ( k = 0; k < nFunCorr; k += 1 ) 
-				printf (" %9.4f", corrSum[j][k * nValCorr +n]);
+				printf (" %9.4e", corrSum[j][k * nValCorr +n]);
 			printf ("\n");
 		}
 	}
