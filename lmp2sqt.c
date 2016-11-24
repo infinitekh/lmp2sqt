@@ -312,7 +312,7 @@ void PrintSpacetimeCorr (FILE *fp)
 
 	for ( j = 0; j < nValCorr; j += 1 ) {
 		tVal = j * deltaT;
-		fprintf (fp_Dt, "%8.4f %8.4f %8.4f\n", tVal, rrDiffuseAv[j] , tVal*rrDiffuseAv[j]); 
+		fprintf (fp_Dt, "%8.4f %8.4e %8.4e\n", tVal, rrDiffuseAv[j] , tVal*rrDiffuseAv[j]); 
 	}
 	fclose(fp_Dt); 
 
