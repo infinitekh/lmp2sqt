@@ -264,7 +264,7 @@ void PrintSpacetimeCorr (FILE *fp)
 	char filename2[100] ="vanHove00.info" ;
 	char filename3[100] ="SSF00.info" ;
 	int nfile = 0;
-	while( 0 == (access(filename1,F_OK))+(access(filename2,F_OK))+(access(filename3,F_OK))) {
+	while( 0 == (access(filename1,F_OK)+access(filename2,F_OK)+access(filename3,F_OK))) {
 		nfile++;
 		sprintf(filename1, "Dt%02d.info",nfile);
 		sprintf(filename2, "vanHove%02d.info",nfile);
