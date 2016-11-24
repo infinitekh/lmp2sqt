@@ -262,8 +262,8 @@ void* error( char string[MAXLINE] ) {
 }
 void read_lines(int n,FILE* fp)  // from lammps reader_native.cpp
 {
-	char *eof;
-	for (int i = 0; i < n; i++) eof = fgets(line,MAXLINE,fp);
+	char *eof;int i;
+	for (i = 0; i < n; i++) eof = fgets(line,MAXLINE,fp);
 	if (eof == NULL) error("Unexpected end of dump file");
 }
 
@@ -307,9 +307,9 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 	const int i_atoms = strlen(s_atoms);
 	const int i_atoms_pos = strlen(s_atoms_pos);
 	fseek(fp, 0, SEEK_SET); // 
-
+	int i;
 	
-	for( int i=0; i<nTime; i++) {
+	for( i=0; i<nTime; i++) {
 		read_lines(9,fp);
 
 		if( strncmp(s_atoms,line,i_atoms) ==0) {
