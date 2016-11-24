@@ -6,9 +6,9 @@
 #include<stdlib.h>
 #include<math.h>
 #define MAXLINE 256
+#include "common.h"
 typedef enum { SUCCESS, FAIL } checktype;
 typedef long int bigint;
-typedef double real;
 enum{ 
 	ERR_NONE
 };

@@ -18,7 +18,7 @@
  * =====================================================================================
  */
 
-typedef double real;
+#include "common.h"
 typedef struct {
 	real R, I;
 } Cmplx;
