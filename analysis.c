@@ -103,7 +103,7 @@ int main ( int argc, char **argv)
 	if (argc >0) PrintHelp (argv[0]);
 	omegaMax = 10.;
 	tMax = 100.;
-	NValDiff = 6;
+	NValDiff = 4;
 
 	if(!strcmp(fName,"-")) {
 		input = stdin;
@@ -229,10 +229,17 @@ int main ( int argc, char **argv)
 				FILE *output = fopen( output_filename, "w");
 				fprintf(output,"#kVal Sq Gamma Dq\n"
 						           "#deltaT = %9.4f\n", deltaT);
-
+				int nValDiffMin=2;
 				for (k = 0; k < nFunCorr; k ++) {
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
-					cT= k*nValCorr+NValDiff; nnT = cT+2; nT = cT+1; nnnT=cT+3;   //Forward first Derivative
+					
+//					cT= k*nValCorr+NValDiff; 
+//					for (cT = k*nValCorr+nValDiffMin; cT < (k+1)*nValCorr-2; cT++) {
+//					for (cT = k*nValCorr+nValDiffMin; cT < (k)*nValCorr+6; cT++) {
+//						if ( corrSum[j][cT] < 0.2) break;
+//					}
+					cT = k*nValCorr+NValDiff;
+					nnT = cT+2; nT = cT+1; nnnT=cT+3;   //Forward first Derivative
 					ppT = cT-2; pT = cT-1; pppT=cT-3;   //central first Derivative
 					valSq    =   corrSum[j][k*nValCorr];
 #define Xm3 (log(corrSum[j][pppT]))
