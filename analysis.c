@@ -27,6 +27,7 @@ typedef struct {
 #include <math.h>
 #include "snapshot.h"
 #include <errno.h>
+#include <unistd.h>
 
 
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
@@ -89,18 +90,44 @@ int main ( int argc, char **argv)
 	doFourier =1;
 	doWindow =0;
 	nSetSkip = 1;
-	while (-- argc >= 0) {
-		if (! strcmp (argv[n], "-t")) doFourier =0;
-		else if (! strcmp (argv[n], "-w")) doWindow =1;
-		else if (! strcmp (argv[n], "-s")) nSetSkip = atoi (argv[n]+2);
-		else {
-			fName = argv[n];
-			break;
+	/* 	while (-- argc >= 0) {
+	 * 		if (! strcmp (argv[n], "-t")) doFourier =0;
+	 * 		else if (! strcmp (argv[n], "-w")) doWindow =1;
+	 * 		else if (! strcmp (argv[n], "-s")) nSetSkip = atoi (argv[n]+2);
+	 * 		else {
+	 * 			fName = argv[n];
+	 * 			break;
+	 * 		}
+	 * 		++ n;
+	 * 	}
+	 */
+	int   param_opt;
+	opterr   = 0;
+
+	while( -1 !=( param_opt = getopt( argc, argv, "tws:h")))
+	{
+		switch( param_opt)
+		{
+			case  't'   :  
+				doFourier =0;
+				break;
+			case  'w'   :  
+				doWindow =1;
+				break;
+			case  's'   :  
+				nSetSkip = atoi(optarg);
+				break;
+			case  '?'   :  
+				printf( "알 수 없는 옵션: %cn", optopt);
+			case 'h'    :
+				PrintHelp(argv[0]);
+				break;
 		}
-		++ n;
 	}
-	
 	if (argc >0) PrintHelp (argv[0]);
+//	fName = argv[1];
+	fName = argv[optind];
+
 	omegaMax = 10.;
 	tMax = 100.;
 	NValDiff = 4;

@@ -260,11 +260,18 @@ void PrintSpacetimeCorr (FILE *fp)
 
 	//  char filename1[100] ="Dq00.info" ;
 	//  char filename2[100] ="Ft00.info" ;
-	char filename1[100] ="Dt00.info" ;
-	char filename2[100] ="vanHove00.info" ;
-	char filename3[100] ="SSF00.info" ;
+	char filename1[100];
+	char filename2[100];
+	char filename3[100];
 	int nfile = 0;
-	while( 0 == (access(filename1,F_OK)+access(filename2,F_OK)+access(filename3,F_OK))) {
+		sprintf(filename1, "Dt%02d.info",nfile);
+		sprintf(filename2, "vanHove%02d.info",nfile);
+		sprintf(filename3, "SSF%02d.info",nfile);
+		//printf( "access(%s) -> return %d", filename1, access(filename1,F_OK));
+	while( 0 == access(filename1,F_OK) ) {
+/* 		fprintf(stderr, "Files are  exist at least . (%02d) \n", nfile);
+ * 		sleep(1);
+ */
 		nfile++;
 		sprintf(filename1, "Dt%02d.info",nfile);
 		sprintf(filename2, "vanHove%02d.info",nfile);
