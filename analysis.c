@@ -27,6 +27,7 @@ typedef struct {
 #include <math.h>
 #include "snapshot.h"
 #include <errno.h>
+#include <getopt.h>
 #include <unistd.h>
 
 
@@ -61,6 +62,9 @@ char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName);
 void FftComplex (Cmplx *a, int size);
+
+
+static int verbose_flag;
 int main ( int argc, char **argv)
 {
 	Cmplx *work;
@@ -87,7 +91,7 @@ int main ( int argc, char **argv)
 	 *-----------------------------------------------------------------------------*/
 	n = 1;
 	if (-- argc <1 || ! strcmp (argv[1], "-h")) PrintHelp (argv[0]);
-	doFourier =1;
+	doFourier =0;
 	doWindow =0;
 	nSetSkip = 1;
 	/* 	while (-- argc >= 0) {
@@ -103,19 +107,38 @@ int main ( int argc, char **argv)
 	 */
 	int   param_opt;
 	opterr   = 0;
+	NValDiff = 4;
+	static struct option long_options[] = 
+	{
+		{"verbose", no_argument,       &verbose_flag, 1},
+		{"time", no_argument, 0, 't'},
+		{"fourier", no_argument, 0, 'f'},
+		{"window", no_argument, 0, 'w'},
+		{"nskip", required_argument, 0, 's'},
+		{"ndiff", required_argument, 0, 'd'},
+		{"help", no_argument, 0, 'h'},
+		{0,0,0,0}
+	};
+	int option_index=0;
 
-	while( -1 !=( param_opt = getopt( argc, argv, "tws:h")))
+	while( -1 !=( param_opt = getopt_long( argc, argv, "ftws:d:h", long_options, &option_index)))
 	{
 		switch( param_opt)
 		{
 			case  't'   :  
 				doFourier =0;
 				break;
+			case  'f'   :  
+				doFourier =1;
+				break;
 			case  'w'   :  
 				doWindow =1;
 				break;
 			case  's'   :  
 				nSetSkip = atoi(optarg);
+				break;
+			case  'd'   :  
+				NValDiff = atoi(optarg);
 				break;
 			case  '?'   :  
 				printf( "알 수 없는 옵션: %cn", optopt);
@@ -130,7 +153,6 @@ int main ( int argc, char **argv)
 
 	omegaMax = 10.;
 	tMax = 100.;
-	NValDiff = 4;
 
 	if(!strcmp(fName,"-")) {
 		input = stdin;
@@ -319,8 +341,15 @@ void PrintHelp ( char *pName)
 {
 	printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
 			 " input-file \n" 
-			 " if you want to use stdin, you should used -  \n"
-			 , pName);
+		"\t--time -t    : time space(default) \n"
+		"\t--fourier -f : omega space  \n"
+		"\t--window -w  : do windows \n"
+		"\t--nskip -s (with option int): Skip early data\n"
+		"\t--ndiff -d (with option int): \n"
+		"\t--help -h    : usage of this function\n"
+		"\t--verbose -v : equaivalent with help \n"
+		" if you want to use stdin, you should used -  \n"
+		, pName);
 	exit(0);
 }
 
