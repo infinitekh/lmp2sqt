@@ -69,8 +69,8 @@ int main ( int argc, char **argv)
 {
 	Cmplx *work;
 	real *corrSum[nDataTypes], *corrSumSq[nDataTypes], *corrSumErr[nDataTypes],
-			 damp, deltaT, deltaTCorr,
-			 omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
+	damp, deltaT, deltaTCorr,
+	omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
 	real valGamma, valDq, valSq;
 	int doFourier,doWindow;
 	int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
@@ -79,13 +79,13 @@ int main ( int argc, char **argv)
 	char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 	FILE *input, *output;
 	Snapshot* pSnap;
-/* 	int nDataTypes = sizeof(header);
- * 	int tempa      = sizeof(char*);
- * 	printf( "%d %d \n ", nDataTypes, tempa);
- * 	exit(1);
- */
+	/* 	int nDataTypes = sizeof(header);
+	 * 	int tempa      = sizeof(char*);
+	 * 	printf( "%d %d \n ", nDataTypes, tempa);
+	 * 	exit(1);
+	 */
 
-	
+
 	/*-----------------------------------------------------------------------------
 	 *  Argument Check!! And open a file.
 	 *-----------------------------------------------------------------------------*/
@@ -147,8 +147,8 @@ int main ( int argc, char **argv)
 				break;
 		}
 	}
-	if (argc >0) PrintHelp (argv[0]);
-//	fName = argv[1];
+	if (optind >0) PrintHelp (argv[0]);
+	//	fName = argv[1];
 	fName = argv[optind];
 
 	omegaMax = 10.;
@@ -164,11 +164,11 @@ int main ( int argc, char **argv)
 			exit(EXIT_FAILURE);
 		}
 	}
-//	if((input = fopen (fName, "r")) == 0) {
-//		printf ("no file : %s\n", fName);
-//		fp
-//		exit (0);
-//	}
+	//	if((input = fopen (fName, "r")) == 0) {
+	//		printf ("no file : %s\n", fName);
+	//		fp
+	//		exit (0);
+	//	}
 
 	while (1) {
 		bp = fgets (buff, BUFF_LEN, input);
@@ -177,7 +177,7 @@ int main ( int argc, char **argv)
 		NameVal (nFunCorr);
 		NameVal (nValCorr);
 		NameVal (kVal);
-//		NameString (lmpFileName);
+		//		NameString (lmpFileName);
 	}
 	deltaTCorr =  deltaT;
 	kVal2 = kVal*kVal;
@@ -212,16 +212,16 @@ int main ( int argc, char **argv)
 			for ( j =0; j < nDataTypes; j++) {
 				bp = fgets (buff, BUFF_LEN, input); // header types check(not completed)
 				printf("## header check : %s \n", buff);
-				
+
 				for ( n =0; n<nValCorr; n ++) {
 					bp = fgets (buff, BUFF_LEN, input);
 #ifndef NDEBUG
-				puts(buff);
+					puts(buff);
 #endif
 					for ( k = 0; k < nFunCorr; k += 1 ) {
 						w = strtod (bp, &bp);
 #ifndef NDEBUG
-				printf(" %8.4f",w);
+						printf(" %8.4f",w);
 #endif
 						corrSum[j][k * nValCorr + n] += w;
 						corrSumSq[j][k * nValCorr + n] += Sqr(w);
@@ -230,14 +230,14 @@ int main ( int argc, char **argv)
 					puts("\n");
 #endif
 				}
-					bp = fgets (buff, BUFF_LEN, input);// null line
-					printf("## endline null string default : %s \n", buff);
+				bp = fgets (buff, BUFF_LEN, input);// null line
+				printf("## endline null string default : %s \n", buff);
 			}
 		}
 	}
 	fclose (input);
 	printf ("%d\n", nData);
- 
+
 	for ( j = 0; j < nDataTypes; j += 1 ) {
 		for ( n = 0; n < nFunCorr*nValCorr; n += 1 ) {
 			corrSum[j][n] /= nData;
@@ -246,9 +246,9 @@ int main ( int argc, char **argv)
 		}
 	}
 
-	
+
 	if (doFourier) {
-		
+
 		for ( j = 0; j < 3; j += 1 ) {
 			for ( k = 0; k < nFunCorr; k += 1 ) {
 				for ( n = 0; n < nValCorr; n += 1 ) {
@@ -277,16 +277,16 @@ int main ( int argc, char **argv)
 				sprintf( output_filename, "%s00.out", header[j] );
 				FILE *output = fopen( output_filename, "w");
 				fprintf(output,"#kVal Sq Gamma Dq\n"
-						           "#deltaT = %9.4f\n", deltaT);
+						"#deltaT = %9.4f\n", deltaT);
 				int nValDiffMin=2;
 				for (k = 0; k < nFunCorr; k ++) {
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
-					
-//					cT= k*nValCorr+NValDiff; 
-//					for (cT = k*nValCorr+nValDiffMin; cT < (k+1)*nValCorr-2; cT++) {
-//					for (cT = k*nValCorr+nValDiffMin; cT < (k)*nValCorr+6; cT++) {
-//						if ( corrSum[j][cT] < 0.2) break;
-//					}
+
+					//					cT= k*nValCorr+NValDiff; 
+					//					for (cT = k*nValCorr+nValDiffMin; cT < (k+1)*nValCorr-2; cT++) {
+					//					for (cT = k*nValCorr+nValDiffMin; cT < (k)*nValCorr+6; cT++) {
+					//						if ( corrSum[j][cT] < 0.2) break;
+					//					}
 					cT = k*nValCorr+NValDiff;
 					nnT = cT+2; nT = cT+1; nnnT=cT+3;   //Forward first Derivative
 					ppT = cT-2; pT = cT-1; pppT=cT-3;   //central first Derivative
@@ -298,93 +298,93 @@ int main ( int argc, char **argv)
 #define Xp2 (log(corrSum[j][nnT]))
 #define Xp1 (log(corrSum[j][nT]) )
 #define X   (log(corrSum[j][cT]) )
-//					valGamma =	 (-(corrSum[j][nnT]) +4.*(corrSum[j][nT]) -3.*(corrSum[j][cT]) )/ (2.0* deltaT*corrSum[j][cT]);
-//					valGamma =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-//					valGamma =   ( (Xp1 - X ) / deltaT ) ;  // Forward O(h) first Derivative
-//					valGamma = (-11.*X + 18.*Xp1-9.*Xp2+2.*Xp3)/ ( 6.*deltaT);// F O(h^3)
+					//					valGamma =	 (-(corrSum[j][nnT]) +4.*(corrSum[j][nT]) -3.*(corrSum[j][cT]) )/ (2.0* deltaT*corrSum[j][cT]);
+					//					valGamma =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					//					valGamma =   ( (Xp1 - X ) / deltaT ) ;  // Forward O(h) first Derivative
+					//					valGamma = (-11.*X + 18.*Xp1-9.*Xp2+2.*Xp3)/ ( 6.*deltaT);// F O(h^3)
 					valGamma =  (-Xp2+ 8.*Xp1 - 8.*Xm1 + Xm2)/ (12.*deltaT); // Cetral O(h^4)
-//					valGamma  =    
+					//					valGamma  =    
 					valDq    = - valGamma / (qVal2) ;
 					fprintf( output, "%8.4e %8.4e %8.4e %8.4e %8.4e\n", qVal, valSq,valGamma,valDq, corrSumErr[j][cT]); 
 				}
 				fclose(output);
-				
 
-//      scaling by function of  t=0
+
+				//      scaling by function of  t=0
 				for ( k = 0; k < nFunCorr; k += 1 ) {
 					for ( n = 1; n < nValCorr; n += 1 ) 
 						corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
 					corrSum[j][k * nValCorr] = 1.;
 				}
+				}
+			}
+			tMax = Min ( tMax, (nValCorr -1) * deltaTCorr);
+			nv = nValCorr * tMax /  (nValCorr - 1) / deltaTCorr;
+			printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
+		} // else end
+
+		for ( j = 0; j < nDataTypes; j += 1 ) {
+			printf("%s\n", header[j]);
+			for (n=0; n < nv; n++) {
+				if (doFourier) x = n * omegaMax / nv;
+				else x = n * deltaTCorr;
+				printf ( "%9.4e", x);
+
+				for ( k = 0; k < nFunCorr; k += 1 ) 
+					printf (" %9.4e", corrSum[j][k * nValCorr +n]);
+				printf ("\n");
 			}
 		}
-		tMax = Min ( tMax, (nValCorr -1) * deltaTCorr);
-		nv = nValCorr * tMax /  (nValCorr - 1) / deltaTCorr;
-		printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
-	} // else end
-    
-	for ( j = 0; j < nDataTypes; j += 1 ) {
-		printf("%s\n", header[j]);
-		for (n=0; n < nv; n++) {
-			if (doFourier) x = n * omegaMax / nv;
-			else x = n * deltaTCorr;
-			printf ( "%9.4e", x);
-			
-			for ( k = 0; k < nFunCorr; k += 1 ) 
-				printf (" %9.4e", corrSum[j][k * nValCorr +n]);
-			printf ("\n");
-		}
 	}
-}
 
-void PrintHelp ( char *pName)
-{
-	printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
-			 " input-file \n" 
-		"\t--time -t    : time space(default) \n"
-		"\t--fourier -f : omega space  \n"
-		"\t--window -w  : do windows \n"
-		"\t--nskip -s (with option int): Skip early data\n"
-		"\t--ndiff -d (with option int): \n"
-		"\t--help -h    : usage of this function\n"
-		"\t--verbose -v : equaivalent with help \n"
-		" if you want to use stdin, you should used -  \n"
-		, pName);
-	exit(0);
-}
-
-void FftComplex (Cmplx *a, int size)
-{
-	Cmplx t, w, wo;
-	real theta;
-	int i, j, k, n;
-	k = 0;
-	for (i = 0; i < size; i ++) {
-		if (i < k) {
-			t = a[i];
-			a[i] = a[k];
-			a[k] = t;
-		}
-		n = size / 2;
-		while (n >= 1 && k >= n) {
-			k -= n;
-			n /= 2;
-		}
-		k += n;
+	void PrintHelp ( char *pName)
+	{
+		printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
+				" input-file \n" 
+				"\t--time -t    : time space(default) \n"
+				"\t--fourier -f : omega space  \n"
+				"\t--window -w  : do windows \n"
+				"\t--nskip -s (with option int): Skip early data\n"
+				"\t--ndiff -d (with option int): \n"
+				"\t--help -h    : usage of this function\n"
+				"\t--verbose -v : equaivalent with help \n"
+				" if you want to use stdin, you should used -  \n"
+				, pName);
+		exit(0);
 	}
-	for (n = 1; n < size; n *= 2) {
-		theta = M_PI / n;
-		CSet (wo, cos (theta) - 1., sin (theta));
-		CSet (w, 1., 0.);
-		for (k = 0; k < n; k ++) {
-			for (i = k; i < size; i += 2 * n) {
-				j = i + n;
-				CMul (t, w, a[j]);
-				CSub (a[j], a[i], t);
-				CAdd (a[i], a[i], t);
+
+	void FftComplex (Cmplx *a, int size)
+	{
+		Cmplx t, w, wo;
+		real theta;
+		int i, j, k, n;
+		k = 0;
+		for (i = 0; i < size; i ++) {
+			if (i < k) {
+				t = a[i];
+				a[i] = a[k];
+				a[k] = t;
 			}
-			CMul (t, w, wo);
-			CAdd (w, w, t);
+			n = size / 2;
+			while (n >= 1 && k >= n) {
+				k -= n;
+				n /= 2;
+			}
+			k += n;
+		}
+		for (n = 1; n < size; n *= 2) {
+			theta = M_PI / n;
+			CSet (wo, cos (theta) - 1., sin (theta));
+			CSet (w, 1., 0.);
+			for (k = 0; k < n; k ++) {
+				for (i = k; i < size; i += 2 * n) {
+					j = i + n;
+					CMul (t, w, a[j]);
+					CSub (a[j], a[i], t);
+					CAdd (a[i], a[i], t);
+				}
+				CMul (t, w, wo);
+				CAdd (w, w, t);
+			}
 		}
 	}
-}
