@@ -60,7 +60,7 @@ int  scail[]    = { 1,   1,  1,  0 };
 char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 		 *txtCorr = "space-time corr";
 int nDataTypes = sizeof(header)/sizeof(char*);
-void PrintHelp ( char *pName);
+void PrintHelp ( char *pName,int);
 void FftComplex (Cmplx *a, int size);
 
 
@@ -90,7 +90,7 @@ int main ( int argc, char **argv)
 	 *  Argument Check!! And open a file.
 	 *-----------------------------------------------------------------------------*/
 	n = 1;
-	if (-- argc <1 || ! strcmp (argv[1], "-h")) PrintHelp (argv[0]);
+	if (-- argc <1 || ! strcmp (argv[1], "-h")) PrintHelp (argv[0], __LINE__);
 	doFourier =0;
 	doWindow =0;
 	nSetSkip = 1;
@@ -143,11 +143,11 @@ int main ( int argc, char **argv)
 			case  '?'   :  
 				printf( "알 수 없는 옵션: %cn", optopt);
 			case 'h'    :
-				PrintHelp(argv[0]);
+				PrintHelp(argv[0], __LINE__);
 				break;
 		}
 	}
-	if (optind >0) PrintHelp (argv[0]);
+	if (optind <1) PrintHelp (argv[0], __LINE__);
 	//	fName = argv[1];
 	fName = argv[optind];
 
@@ -337,7 +337,7 @@ int main ( int argc, char **argv)
 		}
 	}
 
-	void PrintHelp ( char *pName)
+	void PrintHelp ( char *pName, int linenumber)
 	{
 		printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
 				" input-file \n" 
@@ -349,7 +349,8 @@ int main ( int argc, char **argv)
 				"\t--help -h    : usage of this function\n"
 				"\t--verbose -v : equaivalent with help \n"
 				" if you want to use stdin, you should used -  \n"
-				, pName);
+				"Error line number %d\n"
+				, pName, linenumber);
 		exit(0);
 	}
 
