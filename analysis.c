@@ -211,7 +211,9 @@ int main ( int argc, char **argv)
 			++ nData;
 			for ( j =0; j < nDataTypes; j++) {
 				bp = fgets (buff, BUFF_LEN, input); // header types check(not completed)
+#ifndef NDEBUG
 				printf("## header check : %s \n", buff);
+#endif
 
 				for ( n =0; n<nValCorr; n ++) {
 					bp = fgets (buff, BUFF_LEN, input);
