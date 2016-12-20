@@ -294,7 +294,7 @@ int main ( int argc, char **argv)
 /*-----------------------------------------------------------------------------
 *      get slope on nValDiff time or where is return of function lower than 0.2
 *-----------------------------------------------------------------------------*/
-					cT= k*nValCorr; 
+					cT= k*nValCorr+2; 
 					for (; cT < (k+1)*nValCorr; cT++) {
 						if ( corrSum[j][cT] < fFqtUnderLimit) break;
 						if ( cT == k*nValCorr+NValDiff ) break;
