@@ -233,7 +233,9 @@ int main ( int argc, char **argv)
 #endif
 				}
 				bp = fgets (buff, BUFF_LEN, input);// null line
+#ifndef NDEBUG
 				printf("## endline null string default : %s \n", buff);
+#endif
 			}
 		}
 	}
