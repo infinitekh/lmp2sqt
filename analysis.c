@@ -282,16 +282,19 @@ int main ( int argc, char **argv)
 				FILE *output = fopen( output_filename, "w");
 				fprintf(output,"#kVal Sq Gamma Dq\n"
 						"#deltaT = %9.4f\n", deltaT);
-				int nValDiffMin=2;
+				int nValDiffTemp=NValDiff;
 				for (k = 0; k < nFunCorr; k ++) {
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
 
-					//					cT= k*nValCorr+NValDiff; 
-					//					for (cT = k*nValCorr+nValDiffMin; cT < (k+1)*nValCorr-2; cT++) {
-					//					for (cT = k*nValCorr+nValDiffMin; cT < (k)*nValCorr+6; cT++) {
-					//						if ( corrSum[j][cT] < 0.2) break;
-					//					}
-					cT = k*nValCorr+NValDiff;
+/*-----------------------------------------------------------------------------
+*      get slope on nValDiff time or where is return of function lower than 0.2
+*-----------------------------------------------------------------------------*/
+					cT= k*nValCorr; 
+					for (; cT < (k+1)*nValCorr; cT++) {
+						if ( corrSum[j][cT] < 0.2) break;
+						if ( cT == k*nValCorr+NValDiff ) break;
+					}
+
 					nnT = cT+2; nT = cT+1; nnnT=cT+3;   //Forward first Derivative
 					ppT = cT-2; pT = cT-1; pppT=cT-3;   //central first Derivative
 					valSq    =   corrSum[j][k*nValCorr];
