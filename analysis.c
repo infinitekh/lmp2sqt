@@ -76,6 +76,7 @@ int main ( int argc, char **argv)
 	int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
 	int nData,nFunCorr,nSet,nSetSkip,
 			nv, nValCorr, NValDiff;
+	real fFqtUnderLimit= exp(-2.5);
 	char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 	FILE *input, *output;
 	Snapshot* pSnap;
@@ -116,12 +117,13 @@ int main ( int argc, char **argv)
 		{"window", no_argument, 0, 'w'},
 		{"nskip", required_argument, 0, 's'},
 		{"ndiff", required_argument, 0, 'd'},
+		{"ulimit", required_argument, 0, 'u'},
 		{"help", no_argument, 0, 'h'},
 		{0,0,0,0}
 	};
 	int option_index=0;
 
-	while( -1 !=( param_opt = getopt_long( argc, argv, "ftws:d:h", long_options, &option_index)))
+	while( -1 !=( param_opt = getopt_long( argc, argv, "ftws:d:u:h", long_options, &option_index)))
 	{
 		switch( param_opt)
 		{
@@ -139,6 +141,9 @@ int main ( int argc, char **argv)
 				break;
 			case  'd'   :  
 				NValDiff = atoi(optarg);
+				break;
+			case  'u'   :  
+				fFqtUnderLimit = atof(optarg);
 				break;
 			case  '?'   :  
 				printf( "알 수 없는 옵션: %cn", optopt);
@@ -291,7 +296,7 @@ int main ( int argc, char **argv)
 *-----------------------------------------------------------------------------*/
 					cT= k*nValCorr; 
 					for (; cT < (k+1)*nValCorr; cT++) {
-						if ( corrSum[j][cT] < 0.2) break;
+						if ( corrSum[j][cT] < fFqtUnderLimit) break;
 						if ( cT == k*nValCorr+NValDiff ) break;
 					}
 
