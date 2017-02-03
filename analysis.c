@@ -372,11 +372,12 @@ int main ( int argc, char **argv)
 
 
 				//      scaling by function of  t=0
-				memcpy( Fqt, corrSum, sizeof(real)*nFunCorr*nValCorr);
 				for ( k = 0; k < nFunCorr; k += 1 ) {
 					for ( n = 1; n < nValCorr; n += 1 ){ 
+						Fqt [j][k*nValCorr + n] = corrSum [j][k*nValCorr + n] ;
 						corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
 					}
+					Fqt [j][k*nValCorr ] = corrSum [j][k*nValCorr ] ;
 					corrSum[j][k * nValCorr] = 1.;
 				}
 				}
