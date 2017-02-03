@@ -72,6 +72,7 @@ int main ( int argc, char **argv)
 {
 	Cmplx *work;
 	real *corrSum[nDataTypes], *corrSumSq[nDataTypes], *corrSumErr[nDataTypes],
+	*Fqt[nDataTypes],
 	*Dqt[nDataTypes],*Hqt[nDataTypes],*corrSumD1[nDataTypes],damp, deltaT, deltaTCorr,
 	*GammaQT[nDataTypes],omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
 	real valGamma, valDq, valSq, Fq0;
@@ -197,6 +198,7 @@ int main ( int argc, char **argv)
 		corrSum[j] = alloc_real(nFunCorr * nValCorr);
 		corrSumD1[j] = alloc_real(nFunCorr * nValCorr);
 		Dqt[j] = alloc_real(nFunCorr * nValCorr);
+		Fqt[j] = alloc_real(nFunCorr * nValCorr);
 		Hqt[j] = alloc_real(nFunCorr * nValCorr);
 		GammaQT[j] = alloc_real(nFunCorr * nValCorr);
 
@@ -207,6 +209,7 @@ int main ( int argc, char **argv)
 			corrSumD1 [j][n] = NAN;
 			Dqt [j][n] = NAN;
 			Hqt [j][n] = NAN;
+			Fqt [j][n] = NAN;
 			GammaQT [j][n] = NAN;
 			corrSumSq [j][n] = 0;
 			corrSumErr [j][n] = 0;
@@ -369,9 +372,11 @@ int main ( int argc, char **argv)
 
 
 				//      scaling by function of  t=0
+				memcpy( Fqt, corrSum, sizeof(real)*nFunCorr*nValCorr);
 				for ( k = 0; k < nFunCorr; k += 1 ) {
-					for ( n = 1; n < nValCorr; n += 1 ) 
+					for ( n = 1; n < nValCorr; n += 1 ){ 
 						corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
+					}
 					corrSum[j][k * nValCorr] = 1.;
 				}
 				}
@@ -384,12 +389,14 @@ int main ( int argc, char **argv)
 		FILE* fGammaQT = fopen("GaamaQT.info", "w");
 		FILE* fDqt = fopen("Dqt.info", "w");
 		FILE* fHqt = fopen("Hqt.info", "w");
+		FILE* fFqt = fopen("Fqt.info", "w");
 		FILE* fFqt1 = fopen("Fqt1.info", "w");
 		for ( j = 0; j < nDataTypes; j += 1 ) {
 			printf("%s\n", header[j]);
 			fprintf(fGammaQT,"%s\n", header[j]);
 			fprintf(fDqt,"%s\n", header[j]);
 			fprintf(fHqt,"%s\n", header[j]);
+			fprintf(fFqt,"%s\n", header[j]);
 			fprintf(fFqt1,"%s\n", header[j]);
 			for (n=0; n < nv; n++) {
 				if (doFourier) x = n * omegaMax / nv;
@@ -398,6 +405,7 @@ int main ( int argc, char **argv)
 				fprintf (fGammaQT, "%9.4e", x);
 				fprintf (fDqt, "%9.4e", x);
 				fprintf (fHqt, "%9.4e", x);
+				fprintf (fFqt, "%9.4e", x);
 				fprintf (fFqt1, "%9.4e", x);
 
 				for ( k = 0; k < nFunCorr; k += 1 ) {
@@ -405,12 +413,14 @@ int main ( int argc, char **argv)
 					fprintf (fGammaQT," %9.4e", GammaQT[j][k * nValCorr +n]);
 					fprintf (fDqt," %9.4e", Dqt[j][k * nValCorr +n]);
 					fprintf (fHqt," %9.4e", Hqt[j][k * nValCorr +n]);
+					fprintf (fFqt," %9.4e", Fqt[j][k * nValCorr +n]);
 					fprintf (fFqt1," %9.4e", corrSumD1[j][k * nValCorr +n]);
 				}
 				printf ("\n");
 				fprintf ( fGammaQT,"\n");
 				fprintf (fDqt,"\n");
 				fprintf (fHqt,"\n");
+				fprintf (fFqt,"\n");
 				fprintf (fFqt1,"\n");
 			}
 		}
