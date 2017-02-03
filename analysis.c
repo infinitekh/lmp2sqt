@@ -5,7 +5,7 @@
  *
  *    Description:  
  *
- *        Version:  1.0
+ *        Version:  1.1 (Full Dqt)
  *        Created:  2016년 07월 26일 14시 24분 35초
  *       Revision:  none
  *       Compiler:  gcc
@@ -62,6 +62,9 @@ char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName,int);
 void FftComplex (Cmplx *a, int size);
+real finite_diff_log_cetral(real* records, int index);
+real finite_diff_log_backward(real* records, int index);
+real finite_diff_log_forward(real* records, int index);
 
 
 static int verbose_flag;
@@ -69,9 +72,9 @@ int main ( int argc, char **argv)
 {
 	Cmplx *work;
 	real *corrSum[nDataTypes], *corrSumSq[nDataTypes], *corrSumErr[nDataTypes],
-	damp, deltaT, deltaTCorr,
-	omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
-	real valGamma, valDq, valSq;
+	*Dqt[nDataTypes],*Hqt[nDataTypes],*corrSumD1[nDataTypes],damp, deltaT, deltaTCorr,
+	*GammaQT[nDataTypes],omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
+	real valGamma, valDq, valSq, Fq0;
 	int doFourier,doWindow;
 	int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
 	int nData,nFunCorr,nSet,nSetSkip,
@@ -192,13 +195,21 @@ int main ( int argc, char **argv)
 	 *-----------------------------------------------------------------------------*/
 	for (j = 0; j < nDataTypes; j ++) {
 		corrSum[j] = alloc_real(nFunCorr * nValCorr);
+		corrSumD1[j] = alloc_real(nFunCorr * nValCorr);
+		Dqt[j] = alloc_real(nFunCorr * nValCorr);
+		Hqt[j] = alloc_real(nFunCorr * nValCorr);
+		GammaQT[j] = alloc_real(nFunCorr * nValCorr);
 
 		corrSumSq[j] = alloc_real( nFunCorr * nValCorr);
 		corrSumErr[j] = alloc_real( nFunCorr * nValCorr);
 		for (n =0; n < nFunCorr* nValCorr; n++) {
-			corrSum [j][n] = 0.;
-			corrSumSq [j][n] = 0.;
-			corrSumErr [j][n] = 0.;
+			corrSum [j][n] = 0;
+			corrSumD1 [j][n] = NAN;
+			Dqt [j][n] = NAN;
+			Hqt [j][n] = NAN;
+			GammaQT [j][n] = NAN;
+			corrSumSq [j][n] = 0;
+			corrSumErr [j][n] = 0;
 		}
 	}
 
@@ -232,6 +243,9 @@ int main ( int argc, char **argv)
 #endif
 						corrSum[j][k * nValCorr + n] += w;
 						corrSumSq[j][k * nValCorr + n] += Sqr(w);
+/* 						sleep(1);
+ * 						printf("why is this value nan? %f %f  \n",corrSum[j][k*nValCorr +n], w);
+ */
 					}
 #ifndef NDEBUG
 					puts("\n");
@@ -290,34 +304,66 @@ int main ( int argc, char **argv)
 				int nValDiffTemp=NValDiff;
 				for (k = 0; k < nFunCorr; k ++) {
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
+					Fq0 = corrSum[j] [k*nValCorr];
 
 /*-----------------------------------------------------------------------------
 *      get slope on nValDiff time or where is return of function lower than 0.2
 *-----------------------------------------------------------------------------*/
-					cT= k*nValCorr+2; 
-					for (; cT < (k+1)*nValCorr; cT++) {
-						if ( corrSum[j][cT] < fFqtUnderLimit) break;
-						if ( cT == k*nValCorr+NValDiff ) break;
-					}
+#define Xm3 ((corrSum[j][pppT]))
+#define Xm2 ((corrSum[j][ppT]))
+#define Xm1 ((corrSum[j][pT]) )
+#define Xp3 ((corrSum[j][nnnT]))
+#define Xp2 ((corrSum[j][nnT]))
+#define Xp1 ((corrSum[j][nT]) )
+#define X   ((corrSum[j][cT]) )
+#define Xlogm3 (log(corrSum[j][pppT]))
+#define Xlogm2 (log(corrSum[j][ppT]))
+#define Xlogm1 (log(corrSum[j][pT]) )
+#define Xlogp3 (log(corrSum[j][nnnT]))
+#define Xlogp2 (log(corrSum[j][nnT]))
+#define Xlogp1 (log(corrSum[j][nT]) )
+#define Xlog   (log(corrSum[j][cT]) )
+					cT = k*nValCorr;
+					nnT = cT+2; nT = cT+1;  //Forward Records
+					corrSumD1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (-Xlogp2+4.*Xlogp1 -3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
-					nnT = cT+2; nT = cT+1; nnnT=cT+3;   //Forward first Derivative
-					ppT = cT-2; pT = cT-1; pppT=cT-3;   //central first Derivative
-					valSq    =   corrSum[j][k*nValCorr];
-#define Xm3 (log(corrSum[j][pppT]))
-#define Xm2 (log(corrSum[j][ppT]))
-#define Xm1 (log(corrSum[j][pT]) )
-#define Xp3 (log(corrSum[j][nnnT]))
-#define Xp2 (log(corrSum[j][nnT]))
-#define Xp1 (log(corrSum[j][nT]) )
-#define X   (log(corrSum[j][cT]) )
-					//					valGamma =	 (-(corrSum[j][nnT]) +4.*(corrSum[j][nT]) -3.*(corrSum[j][cT]) )/ (2.0* deltaT*corrSum[j][cT]);
-					//					valGamma =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-					//					valGamma =   ( (Xp1 - X ) / deltaT ) ;  // Forward O(h) first Derivative
-					//					valGamma = (-11.*X + 18.*Xp1-9.*Xp2+2.*Xp3)/ ( 6.*deltaT);// F O(h^3)
-					valGamma =  (-Xp2+ 8.*Xp1 - 8.*Xm1 + Xm2)/ (12.*deltaT); // Cetral O(h^4)
-					//					valGamma  =    
-					valDq    = - valGamma / (qVal2) ;
-					fprintf( output, "%8.4e %8.4e %8.4e %8.4e %8.4e\n", qVal, valSq,valGamma,valDq, corrSumErr[j][cT]); 
+					cT = cT+1;
+					pT = cT-1;; nT = cT+1;    
+					corrSumD1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+
+					for (cT= k*nValCorr+2; cT < (k+1)*nValCorr-2; cT++) {
+						nnT = cT+2; nT = cT+1;   //Forward Records
+						ppT = cT-2; pT = cT-1;   //Backward Records 
+
+						if( corrSum[j][nnT] <0. ) break; // Fail to do second central derivative
+						corrSumD1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) second Derivative
+						GammaQT[j] [cT] =   ( (-Xlogp2+8.*Xlogp1-8.*Xlogm1+Xlogm2 ) / (12.*deltaT )) ;  // Central O(h^4) second Derivative
+						Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+						Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+					}
+					corrSumD1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+
+					cT = cT+1;
+					ppT = cT-2; pT=cT -1;
+					corrSumD1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+
+					cT = cT < k*nValCorr +NValDiff  ? cT: k*nValCorr+NValDiff;
+					fprintf(output, "%lf %le %le %le %le %le %le \n", qVal, corrSum[j][k*nValCorr], corrSumD1[j][k*nValCorr], 
+							corrSum[j][cT],corrSumD1[j][cT], 
+							GammaQT[j][cT], Dqt[j][cT]);
+
 				}
 				fclose(output);
 
@@ -335,16 +381,37 @@ int main ( int argc, char **argv)
 			printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
 		} // else end
 
+		FILE* fGammaQT = fopen("GaamaQT.info", "w");
+		FILE* fDqt = fopen("Dqt.info", "w");
+		FILE* fHqt = fopen("Hqt.info", "w");
+		FILE* fFqt1 = fopen("Fqt1.info", "w");
 		for ( j = 0; j < nDataTypes; j += 1 ) {
 			printf("%s\n", header[j]);
+			fprintf(fGammaQT,"%s\n", header[j]);
+			fprintf(fDqt,"%s\n", header[j]);
+			fprintf(fHqt,"%s\n", header[j]);
+			fprintf(fFqt1,"%s\n", header[j]);
 			for (n=0; n < nv; n++) {
 				if (doFourier) x = n * omegaMax / nv;
 				else x = n * deltaTCorr;
 				printf ( "%9.4e", x);
+				fprintf (fGammaQT, "%9.4e", x);
+				fprintf (fDqt, "%9.4e", x);
+				fprintf (fHqt, "%9.4e", x);
+				fprintf (fFqt1, "%9.4e", x);
 
-				for ( k = 0; k < nFunCorr; k += 1 ) 
+				for ( k = 0; k < nFunCorr; k += 1 ) {
 					printf (" %9.4e", corrSum[j][k * nValCorr +n]);
+					fprintf (fGammaQT," %9.4e", GammaQT[j][k * nValCorr +n]);
+					fprintf (fDqt," %9.4e", Dqt[j][k * nValCorr +n]);
+					fprintf (fHqt," %9.4e", Hqt[j][k * nValCorr +n]);
+					fprintf (fFqt1," %9.4e", corrSumD1[j][k * nValCorr +n]);
+				}
 				printf ("\n");
+				fprintf ( fGammaQT,"\n");
+				fprintf (fDqt,"\n");
+				fprintf (fHqt,"\n");
+				fprintf (fFqt1,"\n");
 			}
 		}
 	}
@@ -401,3 +468,24 @@ int main ( int argc, char **argv)
 			}
 		}
 	}
+real finite_diff_log_cetral(real* records, int index) // O(h^4)
+{ /// p previous n next
+	real p2,p1,n1,n2, c = records[index];
+	p2=log(records[index-2]);p1=log(records[index-1]); n1=log(records[index+1]); n2=log(records[index+2]);
+
+}
+real finite_diff_log_backward(real* records, int index) // O(h^2)
+{
+	real p2,p1;
+	p2=log(records[index-2]);p1=log(records[index-1]); 
+
+
+}
+real finite_diff_log_forward(real* records, int index) // O(h^2)
+{
+	real n1,n2;
+	n1=log(records[index+1]); n2=log(records[index+2]);
+
+
+}
+
