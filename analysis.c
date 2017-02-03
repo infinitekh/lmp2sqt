@@ -344,7 +344,7 @@ int main ( int argc, char **argv)
 						nnT = cT+2; nT = cT+1;   //Forward Records
 						ppT = cT-2; pT = cT-1;   //Backward Records 
 
-						if( corrSum[j][nnT] <0. ) break; // Fail to do second central derivative
+						if( corrSum[j][nnT] <0.01 ) break; // Fail to do second central derivative
 						corrSumD1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) second Derivative
 						GammaQT[j] [cT] =   ( (-Xlogp2+8.*Xlogp1-8.*Xlogm1+Xlogm2 ) / (12.*deltaT )) ;  // Central O(h^4) second Derivative
 						Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
