@@ -325,7 +325,7 @@ void PrintSpacetimeCorr (FILE *fp)
 
 
 	FILE* fp_Dt = fopen(filename1,"w");
-	fprintf (fp_Dt, "#diffusion\n");
+	fprintf (fp_Dt, "#time MSD diffusion\n");
 
 	real fac = 1./( 2.* deltaT * DIM * 2);
 	j=0;
@@ -339,7 +339,7 @@ void PrintSpacetimeCorr (FILE *fp)
 
 	for ( j = 0; j < nValCorr; j += 1 ) {
 		tVal = j * deltaT;
-		fprintf (fp_Dt, "%8.4f %8.4e %8.4e\n", tVal, rrMSDAv[j] , rrDt[j]); 
+		fprintf (fp_Dt, "%8.4f %8.4e %8.4e %8.4e\n", tVal, rrMSDAv[j] , rrDt[j], rrMQDAv[j]); 
 	}
 	fclose(fp_Dt); 
 
