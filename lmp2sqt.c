@@ -129,7 +129,8 @@ void AccumSpacetimeCorr ( int nCol)
 			}
 			// Diffuse Part
 			for (j = 0; j < nValCorr; j ++) {
-				rrDiffuseAv[j] += tBuf[nb].rrDiffuse[j];
+				rrMSDAv[j] += tBuf[nb].rrMSD[j];
+				rrMQDAv[j] += tBuf[nb].rrMQD[j];
 				for ( nr=0; nr<nFunCorr; nr++) 
 					avDrTable[nr][j] += tBuf[nb].DrTable[nr][j];
 			}
@@ -141,10 +142,16 @@ void AccumSpacetimeCorr ( int nCol)
 					for (n = 0; n < nValCorr; n ++)
 						avAcfST[j][n] /= 3. * nCol * limitCorrAv;
 				}
-
-				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
+//				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
+/*-----------------------------------------------------------------------------
+*   rrMSDAv -> mean square displacemnt 
+*   rrMQDAv -> mean quadropole displacemnt 
+*-----------------------------------------------------------------------------*/
+//				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
+				fac = 1./ ( nCol *  limitCorrAv); 
 				for (j = 1; j < nValCorr; j ++) {
-					rrDiffuseAv[j] *= fac/ j;
+					rrMSDAv[j] *= fac;
+					rrMQDAv[j] *= fac;
 					for ( nr=0; nr<nFunCorr; nr++) 
 						avDrTable[nr][j] *= factorDr[nr];
 				}
@@ -179,7 +186,10 @@ void ZeroSpacetimeCorr ()
 	}
 
 	countDiffuseAv = 0;
-	for (j = 0; j < nValCorr; j ++) rrDiffuseAv[j] = 0.;
+	for (j = 0; j < nValCorr; j ++) {
+		rrMSDAv[j] = 0.;
+		rrMQDAv[j] = 0.;
+	}
 	for (j = 0; j < nValCorr; j ++) 
 		for (nr = 0; nr < nFunCorr; nr ++) avDrTable[nr][j]= 0.;
 }
@@ -317,9 +327,19 @@ void PrintSpacetimeCorr (FILE *fp)
 	FILE* fp_Dt = fopen(filename1,"w");
 	fprintf (fp_Dt, "#diffusion\n");
 
+	real fac = 1./( 2.* deltaT * DIM * 2);
+	j=0;
+	rrDt[j] = fac*(-rrMSDAv[j+2]  +4.*rrMSDAv[j+1] - 3.* rrMSDAv[j]);
+	for ( j = 1; j < nValCorr-1; j += 1 ) {
+		rrDt[j] = fac*(rrMSDAv[j+1]  -rrMSDAv[j-1] );
+	}
+	j=nValCorr-1;
+	rrDt[j] = fac*(rrMSDAv[j-2]  -4.*rrMSDAv[j-1] + 3.* rrMSDAv[j]);
+
+
 	for ( j = 0; j < nValCorr; j += 1 ) {
 		tVal = j * deltaT;
-		fprintf (fp_Dt, "%8.4f %8.4e %8.4e\n", tVal, rrDiffuseAv[j] , tVal*rrDiffuseAv[j]); 
+		fprintf (fp_Dt, "%8.4f %8.4e %8.4e\n", tVal, rrMSDAv[j] , rrDt[j]); 
 	}
 	fclose(fp_Dt); 
 
@@ -443,7 +463,8 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			/*-----------------------------------------------------------------------------
 			 *  Zero initializing
 			 *-----------------------------------------------------------------------------*/
-			tBuf[nb].rrDiffuse[ni]= 0.;
+			tBuf[nb].rrMSD[ni]= 0.;
+			tBuf[nb].rrMQD[ni]= 0.;
 			for ( nr=0; nr<nFunCorr; nr++) 
 				tBuf[nb].DrTable[nr][ni] =0;
 
@@ -458,7 +479,8 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				dr.z =  col_i->z-tBuf[nb].orgR[n].z ;
 				deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
 
-				tBuf[nb].rrDiffuse[ni] += deltaR2;
+				tBuf[nb].rrMSD[ni] += deltaR2;
+				tBuf[nb].rrMQD[ni] += deltaR2*deltaR2;
 
 				i_Dr    = (int) (sqrt(deltaR2)/rVal);
 				if (i_Dr<nFunCorr)
@@ -517,14 +539,17 @@ void AllocArray ()
 		AllocMem2 (tBuf[nb].acfST, 3 * nFunCorr, nValCorr, real);
 	}
 	// AllocArray for Diffuse ()
-	AllocMem (rrDiffuseAv, nValCorr, real);
+	AllocMem (rrMSDAv, nValCorr, real);
+	AllocMem (rrDt, nValCorr, real);
+	AllocMem (rrMQDAv, nValCorr, real);
 	AllocMem2 (avDrTable, nFunCorr,nValCorr, real);
 }
 void Alloc_more (int  nCol) {
 	int nb,nr; real rho0, shell_Vol;
 	for (nb = 0; nb < nBuffCorr; nb ++) {
 		AllocMem (tBuf[nb].orgR, nCol, VecR3);
-		AllocMem (tBuf[nb].rrDiffuse, nValCorr, real);
+		AllocMem (tBuf[nb].rrMSD, nValCorr, real);
+		AllocMem (tBuf[nb].rrMQD, nValCorr, real);
 		AllocMem2 (tBuf[nb].DrTable, nFunCorr,nValCorr, int);
 	}
 	AllocMem (factorDr, nFunCorr, real);

@@ -87,7 +87,8 @@ typedef struct {
 	real **acfST, *orgST;
 	VecR3 *orgR, *rTrue;
 	// VecR3 *orgVel; real *acfVel;
-	real *rrDiffuse;
+	real *rrMSD;
+	real *rrMQD;
 	int **DrTable;
 	int count;
 	int countDiff;
@@ -98,7 +99,9 @@ real **avAcfST, *valST, **valDqt, **valGammaQT;
 	real **avDrTable;
 	real *factorDr;
 int countCorrAv, limitCorrAv, nBuffCorr, nFunCorr, nValCorr;
-real *rrDiffuseAv;
+real *rrMSDAv;
+real *rrMQDAv;
+real *rrDt;
 int countDiffuseAv;
 
 real g_L;    // only used cubic simulation box case
