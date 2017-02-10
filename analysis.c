@@ -62,9 +62,10 @@ char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName,int);
 void FftComplex (Cmplx *a, int size);
-real finite_diff_log_cetral(real* records, int index);
-real finite_diff_log_backward(real* records, int index);
-real finite_diff_log_forward(real* records, int index);
+real finite_diff1_log(real* diff, real* record,int size, real dt);
+real finite_diff1(real* diff, real* record, int size, real dt);
+real finite_diff2_log(real* diff2,real* diff, real* record, int size, real dt);
+real finite_diff2(real* diff2,real* diff, real* record, int size, real dt);
 
 
 static int verbose_flag;
@@ -333,20 +334,16 @@ int main ( int argc, char **argv)
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
-					cT = cT+1;
-					pT = cT-1;; nT = cT+1;    
-					corrSumD1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
-					GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
-					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
-					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
-					for (cT= k*nValCorr+2; cT < (k+1)*nValCorr-2; cT++) {
-						nnT = cT+2; nT = cT+1;   //Forward Records
-						ppT = cT-2; pT = cT-1;   //Backward Records 
+					for (cT= k*nValCorr+1; cT < (k+1)*nValCorr-1; cT++) {
+						 nT = cT+1;   //Forward Records
+						 pT = cT-1;   //Backward Records 
 
-						if( corrSum[j][nnT] <0.01 ) break; // Fail to do second central derivative
-						corrSumD1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) second Derivative
-						GammaQT[j] [cT] =   ( (-Xlogp2+8.*Xlogp1-8.*Xlogm1+Xlogm2 ) / (12.*deltaT )) ;  // Central O(h^4) second Derivative
+						if( corrSum[j][nnT] <0.05 ) break; // Fail to do second central derivative
+						corrSumD1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
+//						corrSumD1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
+						GammaQT[j] [cT] =   ( (Xlogp1 - Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
+//						GammaQT[j] [cT] =   ( (-Xlogp2+8.*Xlogp1-8.*Xlogm1+Xlogm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
 						Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 						Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 					}
@@ -355,7 +352,6 @@ int main ( int argc, char **argv)
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
-					cT = cT+1;
 					ppT = cT-2; pT=cT -1;
 					corrSumD1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
@@ -479,24 +475,69 @@ int main ( int argc, char **argv)
 			}
 		}
 	}
-real finite_diff_log_cetral(real* records, int index) // O(h^4)
+real finite_diff1(real* diff, real* record,int size, real dt)
 { /// p previous n next
-	real p2,p1,n1,n2, c = records[index];
-	p2=log(records[index-2]);p1=log(records[index-1]); n1=log(records[index+1]); n2=log(records[index+2]);
-
+	real fac = 1./(2.*dt); int i;
+	if (size > 3){
+		diff[0] = fac* ( -record[2] + 4.*record[1] - 3.*record[0]);
+		diff[size-1] = fac* ( record[size-3] - 4.*record[size-2] + 3.*record[size-1]);
+	}
+	else { diff[0] = 0; diff[size-1] = 0; }
+	
+	for ( i = 1; i < size-1; i += 1 ){
+		diff[i] = fac* (record[i+1] - record[i-1]);
+	}
 }
-real finite_diff_log_backward(real* records, int index) // O(h^2)
-{
-	real p2,p1;
-	p2=log(records[index-2]);p1=log(records[index-1]); 
-
-
+real finite_diff1_log(real* diff, real* record,int size, real dt)
+{ /// p previous n next
+#define LOGREC(x) log(record[x])
+	real fac = 1./(2.*dt); int i;
+	if (size > 3){
+		diff[0] = fac* ( -LOGREC(2) + 4.*LOGREC(1) - 3.*LOGREC(0));
+		diff[size-1] = fac* ( +LOGREC(size-3) - 4.*LOGREC(size-2) + 3.*LOGREC(size-1));
+	}
+	else { diff[0] = 0; diff[size-1] = 0; }
+	
+	for ( i = 1; i < size-1; i += 1 ){
+		diff[i] = fac* (LOGREC(i+1) - LOGREC(i-1));
+	}
+#undef LOGREC
 }
-real finite_diff_log_forward(real* records, int index) // O(h^2)
-{
-	real n1,n2;
-	n1=log(records[index+1]); n2=log(records[index+2]);
+real finite_diff2(real* diff2,real* diff, real* record,int size, real dt)
+{ /// p previous n next
+	real fac = 1./(2.*dt); int i;
+	real fac2 = 1./(dt*dt);
+	if (size > 4){
+		diff[0] = fac* ( -record[2] + 4.*record[1] - 3.*record[0]);
+		diff[size-1] = fac* ( record[size-3] - 4.*record[size-2] + 3.*record[size-1]);
 
-
+		diff2[0] = fac2* ( -record[3] + 4.*record[2] - 5.*record[1]+ 2.*record[0]);
+		diff2[size-1] =fac2*(+record[size-4]-4.*record[size-3]+5.*record[size-2]-2.*record[size-1]);
+	}
+	else { diff[0] = 0; diff[size-1] = 0; }
+	
+	for ( i = 1; i < size-1; i += 1 ){
+		diff[i] = fac* (record[i+1] - record[i-1]);
+		diff2[i] = fac2* (record[i+1]- 2.*record[i] + record[i-1]);
+	}
 }
+real finite_diff2_log(real* diff2,real* diff, real* record,int size, real dt)
+{ /// p previous n next
+#define LOGREC(x) log(record[x])
+	real fac = 1./(2.*dt); int i;
+	real fac2 = 1./(dt*dt);
+	if (size > 4){
+		diff[0] = fac* ( -LOGREC(2) + 4.*LOGREC(1) - 3.*LOGREC(0));
+		diff[size-1] = fac* ( +LOGREC(size-3) - 4.*LOGREC(size-2) + 3.*LOGREC(size-1));
 
+		diff2[0] = fac2* ( -LOGREC(3) + 4.*LOGREC(2) - 5.*LOGREC(1)+ 2.*LOGREC(0));
+		diff2[size-1] =fac2*(+LOGREC(size-4)-4.*LOGREC(size-3)+5.*LOGREC(size-2)-2.*LOGREC(size-1));
+	}
+	else { diff[0] = 0; diff[size-1] = 0; }
+	
+	for ( i = 1; i < size-1; i += 1 ){
+		diff[i] = fac* (LOGREC(i+1) - LOGREC(i-1));
+		diff2[i] = fac2* (LOGREC(i+1)- 2.*LOGREC(i) + LOGREC(i-1));
+	}
+#undef LOGREC
+}
