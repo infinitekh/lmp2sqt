@@ -339,7 +339,8 @@ int main ( int argc, char **argv)
 						 nT = cT+1;   //Forward Records
 						 pT = cT-1;   //Backward Records 
 
-						if( corrSum[j][nnT] <0.05 ) break; // Fail to do second central derivative
+//						if( corrSum[j][nnT] <0.05 ) break; // Fail to do second central derivative
+						if( corrSum[j][nT] <0.1 ) break; // Fail to do second central derivative
 						corrSumD1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
 //						corrSumD1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
 						GammaQT[j] [cT] =   ( (Xlogp1 - Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
