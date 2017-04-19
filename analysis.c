@@ -411,11 +411,11 @@ int main ( int argc, char **argv)
  * 			fprintf(fFqt,"%s\n", header[j]);
  * 			fprintf(fFqt1,"%s\n", header[j]);
  */
-  		fprintf(fGammaQT,"%d\n", nFunCorr);
-  		fprintf(fDqt,"%d\n", nFunCorr);
-  		fprintf(fHqt,"%d\n", nFunCorr);
-  		fprintf(fFqt,"%d\n", nFunCorr);
-  		fprintf(fFqt1,"%d\n", nFunCorr);
+  		fprintf(fGammaQT,"%d", nFunCorr);
+  		fprintf(fDqt,"%d", nFunCorr);
+  		fprintf(fHqt,"%d", nFunCorr);
+  		fprintf(fFqt,"%d", nFunCorr);
+  		fprintf(fFqt1,"%d", nFunCorr);
 			for ( k = 0; k < nFunCorr; k += 1 ) {
 				x= (k+1)*kVal; 
 				fprintf (fGammaQT, "%9.4e", x);
@@ -424,6 +424,11 @@ int main ( int argc, char **argv)
 				fprintf (fFqt, "%9.4e", x);
 				fprintf (fFqt1, "%9.4e", x);
 			}
+			fprintf (fGammaQT, "\n");
+			fprintf (fDqt, "\n");
+			fprintf (fHqt, "\n");
+			fprintf (fFqt, "\n");
+			fprintf (fFqt1, "\n");
 
 			for (n=0; n < nv; n++) {
 				if (doFourier) x = n * omegaMax / nv;
