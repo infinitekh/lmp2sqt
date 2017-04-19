@@ -418,11 +418,11 @@ int main ( int argc, char **argv)
   		fprintf(fFqt1,"%d", nFunCorr);
 			for ( k = 0; k < nFunCorr; k += 1 ) {
 				x= (k+1)*kVal; 
-				fprintf (fGammaQT, "%9.4e", x);
-				fprintf (fDqt, "%9.4e", x);
-				fprintf (fHqt, "%9.4e", x);
-				fprintf (fFqt, "%9.4e", x);
-				fprintf (fFqt1, "%9.4e", x);
+				fprintf (fGammaQT, " %9.4e", x);
+				fprintf (fDqt, " %9.4e", x);
+				fprintf (fHqt, " %9.4e", x);
+				fprintf (fFqt, " %9.4e", x);
+				fprintf (fFqt1, " %9.4e", x);
 			}
 			fprintf (fGammaQT, "\n");
 			fprintf (fDqt, "\n");
