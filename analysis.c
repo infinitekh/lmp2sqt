@@ -384,18 +384,47 @@ int main ( int argc, char **argv)
 			printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
 		} // else end
 
-		FILE* fGammaQT = fopen("GaamaQT.info", "w");
-		FILE* fDqt = fopen("Dqt.info", "w");
-		FILE* fHqt = fopen("Hqt.info", "w");
-		FILE* fFqt = fopen("Fqt.info", "w");
-		FILE* fFqt1 = fopen("Fqt1.info", "w");
+		char fNGammaQT[100] ;
+		char fNDqt[100] ;
+		char fNHqt[100] ;
+		char fNFqt[100] ;
+		char fNFqt1[100];
+
 		for ( j = 0; j < nDataTypes; j += 1 ) {
-			printf("%s\n", header[j]);
-			fprintf(fGammaQT,"%s\n", header[j]);
-			fprintf(fDqt,"%s\n", header[j]);
-			fprintf(fHqt,"%s\n", header[j]);
-			fprintf(fFqt,"%s\n", header[j]);
-			fprintf(fFqt1,"%s\n", header[j]);
+			
+			sprintf(fNGammaQT,"GammaQT.%s.info", header[j]);
+			sprintf(fNDqt, "Dqt.%s.info", header[j]);
+			sprintf(fNHqt, "Hqt.%s.info", header[j]);
+			sprintf(fNFqt, "Fqt.%s.info", header[j]);
+			sprintf(fNFqt1, "Fqt1.%s.info", header[j]);
+
+			FILE* fGammaQT = fopen(fNGammaQT, "w");
+			FILE* fDqt = fopen(fNDqt, "w");
+			FILE* fHqt = fopen(fNHqt, "w");
+			FILE* fFqt = fopen(fNFqt, "w");
+			FILE* fFqt1 = fopen(fNFqt1, "w");
+
+/* 			printf("%s\n", header[j]);
+ * 			fprintf(fGammaQT,"%s\n", header[j]);
+ * 			fprintf(fDqt,"%s\n", header[j]);
+ * 			fprintf(fHqt,"%s\n", header[j]);
+ * 			fprintf(fFqt,"%s\n", header[j]);
+ * 			fprintf(fFqt1,"%s\n", header[j]);
+ */
+  		fprintf(fGammaQT,"%d", nFunCorr);
+  		fprintf(fDqt,"%d", nFunCorr);
+  		fprintf(fHqt,"%d", nFunCorr);
+  		fprintf(fFqt,"%d", nFunCorr);
+  		fprintf(fFqt1,"%d", nFunCorr);
+			for ( k = 0; k < nFunCorr; k += 1 ) {
+				x= (k+1)*kVal; 
+				fprintf (fGammaQT, "%9.4e", x);
+				fprintf (fDqt, "%9.4e", x);
+				fprintf (fHqt, "%9.4e", x);
+				fprintf (fFqt, "%9.4e", x);
+				fprintf (fFqt1, "%9.4e", x);
+			}
+
 			for (n=0; n < nv; n++) {
 				if (doFourier) x = n * omegaMax / nv;
 				else x = n * deltaTCorr;
@@ -421,6 +450,12 @@ int main ( int argc, char **argv)
 				fprintf (fFqt,"\n");
 				fprintf (fFqt1,"\n");
 			}
+			fclose(fGammaQT);
+			fclose(fDqt );
+			fclose(fHqt );
+			fclose(fFqt );
+			fclose(fFqt1);
+			sleep(1);
 		}
 	}
 
