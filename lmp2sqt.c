@@ -61,9 +61,9 @@ typedef struct {
 
 NameList nameList[] = {
 	NameR   (rVal),
-	NameR    (kVal),
-	NameR    (deltaT),
-	NameI   		(limitCorrAv),
+	NameR   (kVal),
+	NameR   (deltaT),
+	NameI  	(limitCorrAv),
 	NameI   (nBuffCorr),       // number of simul. time seq
 	NameI   (nFunCorr),        // number of spatial seq
 	NameI   (nValCorr)         // number of time seq
@@ -116,7 +116,7 @@ int main(int argc, char** argv) {
 	return 0;
 }
 
-void AccumSpacetimeCorr ( int nCol)
+void AccumSpacetimeCorr ()
 {
 	real fac;
 	int j,  nb, nr, n;
@@ -125,7 +125,7 @@ void AccumSpacetimeCorr ( int nCol)
 			// S(q,t), M(q,t) part
 			for (j = 0; j < 3 * nFunCorr; j ++) {
 				for (n = 0; n < nValCorr; n ++)
-					avAcfST[j][n] += tBuf[nb].acfST[j][n];
+					avAcfFcol[j][n] += tBuf[nb].acfFcol[j][n];
 			}
 			// Diffuse Part
 			for (j = 0; j < nValCorr; j ++) {
@@ -140,15 +140,15 @@ void AccumSpacetimeCorr ( int nCol)
 			if (countCorrAv == limitCorrAv) {
 				for (j = 0; j < 3 * nFunCorr; j ++) {
 					for (n = 0; n < nValCorr; n ++)
-						avAcfST[j][n] /= 3. * nCol * limitCorrAv;
+						avAcfFcol[j][n] /= 3. * nPtls * limitCorrAv;
 				}
-//				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
+//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
 /*-----------------------------------------------------------------------------
 *   rrMSDAv -> mean square displacemnt 
 *   rrMQDAv -> mean quadropole displacemnt 
 *-----------------------------------------------------------------------------*/
-//				fac = 1./ ( DIM * 2 * nCol * deltaT * limitCorrAv); 
-				fac = 1./ ( nCol *  limitCorrAv); 
+//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
+				fac = 1./ ( nPtls *  limitCorrAv); 
 				for (j = 1; j < nValCorr; j ++) {
 					rrMSDAv[j] *= fac;
 					rrMQDAv[j] *= fac;
@@ -182,7 +182,7 @@ void ZeroSpacetimeCorr ()
 	int j, n, nr;
 	countCorrAv = 0;
 	for (j = 0; j < 3 * nFunCorr; j ++) {
-		for (n = 0; n < nValCorr; n ++) avAcfST[j][n] = 0.;
+		for (n = 0; n < nValCorr; n ++) avAcfFcol[j][n] = 0.;
 	}
 
 	countDiffuseAv = 0;
@@ -195,7 +195,7 @@ void ZeroSpacetimeCorr ()
 }
 void EvalOtherInformation () 
 {                            // this evaluation yield analysis.c
-#define Fqt_FIX_q avAcfST[3*(j) +2] 
+#define Fqt_FIX_q avAcfFcol[3*(j) +2] 
 	int j,  n,  ppT, pT, cT, nT, nnT;
 	extern real kVal;
 	real kVal2 = kVal*kVal;
@@ -227,11 +227,11 @@ void PrintSpacetimeCorr (FILE *fp)
 	extern real kVal;
 	real tVal;
 	int j, k, n, k2, nr;
-	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
+//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
+	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self","self-long", "self-trans", "self"};
 	fprintf (fp, "space-time corr\n");
 	//for (k = 0; k < 3; k ++) {
 	for (k2 = 0; k2 < sizeof(header)/ sizeof(char*); k2 ++) {
-		k= k2%3;
 		/* 		fprintf (fp, "%s", header[k]);
 		 * 		for (j = 0; j < nFunCorr; j ++)
 		 * 			fprintf (fp, " %7.3f", kVal*(j+1));
@@ -243,14 +243,16 @@ void PrintSpacetimeCorr (FILE *fp)
 		switch ( k2) {
 			case 0: case 1: case 2: 
 				/*-----------------------------------------------------------------------------
-				 *  avAcfST[3*i+k][j] -> F(q_i,t_j) k=0 longi k=1 tranv k=2 density
+				 *  avAcfFcol[3*i+k][j] -> F(q_i,t_j) k=0 longi k=1 tranv k=2 density
 				 *-----------------------------------------------------------------------------*/
+				k= k2%3;
 				for (n = 0; n < nValCorr; n ++) {
 					/* 			deltaT = n *1. * deltaT;
 					 * 			fprintf (fp, "%7.3f", deltaT);
 					 */
-					for (j = 0; j < nFunCorr; j ++)
-						fprintf (fp, " %8.4e", avAcfST[3 * j + k][n]);
+					for (j = 0; j < nFunCorr; j ++){
+						fprintf (fp, " %8.4e", avAcfFcol[3 * j + k][n]);
+					}
 					fprintf (fp, "\n");
 				} 
 				break;
@@ -263,6 +265,22 @@ void PrintSpacetimeCorr (FILE *fp)
 					}
 					fprintf (fp, "\n");
 				}
+				break;
+			case 4: case 5: case 6: 
+				/*-----------------------------------------------------------------------------
+				 *  avAcfFself[3*i+k][j] -> F(q_i,t_j) k=0 longi k=1 tranv k=2 density
+				 *-----------------------------------------------------------------------------*/
+
+				k= (k2-4)%3;
+				for (n = 0; n < nValCorr; n ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (j = 0; j < nFunCorr; j ++){
+						fprintf (fp, " %8.4e", avAcfFself[3 * j + k][n]);
+					}
+					fprintf (fp, "\n");
+				} 
 				break;
 		}
 		fprintf (fp, "\n");
@@ -305,7 +323,7 @@ void PrintSpacetimeCorr (FILE *fp)
 	 * 	for (n = 0; n < nValCorr; n ++) {   
 	 * 		fprintf (fp_Ft, "%8.4f" , n*deltaT );
 	 * 		for (j = 0; j < nFunCorr; j ++) {
-	 * 			fprintf (fp_Ft, " %8.4e" ,  avAcfST[(3*j)+2][n]/avAcfST[(3*j)+2][0]);
+	 * 			fprintf (fp_Ft, " %8.4e" ,  avAcfFcol[(3*j)+2][n]/avAcfFcol[(3*j)+2][0]);
 	 * 		}
 	 * 		fprintf (fp_Ft, "\n");
 	 * 	}
@@ -315,7 +333,7 @@ void PrintSpacetimeCorr (FILE *fp)
 	FILE* fp_SSF = fopen(filename3,"w");
 	n=0;
 	for (j = 0; j < nFunCorr; j ++) {
-		fprintf (fp_SSF, "%8.4f" " %8.4e""\n" , (j+1)*kVal , avAcfST[(3*j)+2][0]);
+		fprintf (fp_SSF, "%8.4f" " %8.4e""\n" , (j+1)*kVal , avAcfFcol[(3*j)+2][0]);
 	}
 	fclose(fp_SSF);
 
@@ -373,14 +391,14 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	int i_Dr;
 	real L = snap->box.xhigh- snap->box.xlow;
 	g_Vol  = L*L*L;
-	int nCol = snap->n_atoms;
+	nPtls = snap->n_atoms;
 	static int first_run = 0;
 	if (first_run ==0 ) 
-		Alloc_more(nCol);
+		Alloc_more();
 	first_run = 1;
 	atom* col_i;
 	// zero initalize current time value
-	for (j = 0; j < 24 * nFunCorr; j ++) valST[j] = 0.;
+	for (j = 0; j < 24 * nFunCorr; j ++) valFcol[j] = 0.;
 	// we assume L0=L1 = L2 
 	/* 	L[0] = snap->box.xhigh- snap->box.xlow;
 	 * 	L[1] = snap->box.yhigh- snap->box.ylow;
@@ -393,7 +411,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	/*-----------------------------------------------------------------------------
 	 *  Direct calculate  rho(q)
 	 *-----------------------------------------------------------------------------*/
-	for (n=0; n<nCol; n++) {
+	for (n=0; n<nPtls; n++) {
 		col_i = &(snap->atoms[n]);
 		/* 		r[0] = col_i->x; r[0] = r[0] - L* floor(r[0]/L)- L/2.;  
 		 * 		r[1] = col_i->y; r[1] = r[1] - L* floor(r[1]/L)- L/2.;  
@@ -427,17 +445,21 @@ void EvalSpacetimeCorr(Snapshot* snap)
 					c = 2. * c0 * c1 - c2;
 					s = 2. * c0 * s1 - s2;
 				}
-				valST[j ++] += mu[0] * c;
-				valST[j ++] += mu[0] * s;
-				valST[j ++] += mu[1] * c;
-				valST[j ++] += mu[1] * s;
-				valST[j ++] += mu[2] * c;
-				valST[j ++] += mu[2] * s;
-				valST[j ++] += c;
-				valST[j ++] += s;
+				valFcol[j ++] += mu[0] * c;
+				valFcol[j ++] += mu[0] * s;
+				valFcol[j ++] += mu[1] * c;
+				valFcol[j ++] += mu[1] * s;
+				valFcol[j ++] += mu[2] * c;
+				valFcol[j ++] += mu[2] * s;
+				valFcol[j ++] += c;
+				valFcol[j ++] += s;
 			}
 		}
-	}
+		if (n == 0 ) {
+			for (j = 0; j < 24 * nFunCorr; j ++) valFself[j] = valFcol[j];
+//			memcpy(valFself, valFcol,sizeof(real)*24*nFunCorr);
+		}
+  }                                             /* for loop : n<nPtls */
 	// End Calculate Current time value
 	// Begin Two time corrlation function
 	for (nb = 0; nb < nBuffCorr; nb ++) {
@@ -445,14 +467,18 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			/*-----------------------------------------------------------------------------
 			 *   t_w information 
 			 *-----------------------------------------------------------------------------*/
-			for (n=0; n<nCol; n++) {
+			for (n=0; n<nPtls; n++) {
 				col_i = &(snap->atoms[n]);
 				tBuf[nb].orgR[n].x = col_i->x;
 				tBuf[nb].orgR[n].y = col_i->y;
 				tBuf[nb].orgR[n].z = col_i->z;
 			}
-			for (j = 0; j < 24 * nFunCorr; j ++)
-				tBuf[nb].orgST[j] = valST[j];
+//			memcpy(tBuf[nb].orgFcol ,  valFcol,sizeof(real)*24*nFunCorr);
+//			memcpy(tBuf[nb].orgFself, valFself,sizeof(real)*24*nFunCorr);
+			for (j = 0; j < 24 * nFunCorr; j ++){
+				tBuf[nb].orgFcol[j] = valFcol[j];
+				tBuf[nb].orgFself[j] = valFself[j];
+			}
 		}                        // End   buffer count ==0
 
 		if (tBuf[nb].count >= 0) {
@@ -472,7 +498,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			 *  Calculation at this time
 			 *-----------------------------------------------------------------------------*/
 
-			for (n=0; n<nCol; n++) {
+			for (n=0; n<nPtls; n++) {
 				col_i = &(snap->atoms[n]);
 				dr.x =  col_i->x-tBuf[nb].orgR[n].x ;
 				dr.y =  col_i->y-tBuf[nb].orgR[n].y ;
@@ -490,10 +516,12 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			/*-----------------------------------------------------------------------------
 			 *  two time correlation 
 			 *-----------------------------------------------------------------------------*/
-			//acfST 0 initialization
-			for (j = 0; j < 3 * nFunCorr; j ++)
-				tBuf[nb].acfST[j][ni] = 0.;
-			// add AcfST
+			//acfFcol 0 initialization
+			for (j = 0; j < 3 * nFunCorr; j ++) {
+				tBuf[nb].acfFcol[j][ni] = 0.;
+				tBuf[nb].acfFself[j][ni] = 0.;
+			}
+			// add AcfFcol
 			for (j = 0,k = 0; k < 3; k ++) { // 3 loop
 				for (m = 0; m < nFunCorr; m ++) {
 					for (nc = 0; nc < 4; nc ++) {  
@@ -510,9 +538,12 @@ void EvalSpacetimeCorr(Snapshot* snap)
 							//              else w *= 0.5;
 						} else w = 1.;   // density   3*m+2
 						// cos(q*r(t)) cos(q*r(t_w) +sin sin
-						tBuf[nb].acfST[nv][ni] +=
-							w * (valST[j] * tBuf[nb].orgST[j] +
-									valST[j + 1] * tBuf[nb].orgST[j + 1]);
+						tBuf[nb].acfFself[nv][ni] +=
+							w * (valFself[j] * tBuf[nb].orgFself[j] +
+									valFself[j + 1] * tBuf[nb].orgFself[j + 1]);
+						tBuf[nb].acfFcol[nv][ni] +=
+							w * (valFcol[j] * tBuf[nb].orgFcol[j] +
+									valFcol[j + 1] * tBuf[nb].orgFcol[j + 1]);
 						j += 2;
 					}  // for nc, total j+=8
 					assert ( j%8 ==0);
@@ -523,20 +554,27 @@ void EvalSpacetimeCorr(Snapshot* snap)
 		}                        // End buffer count >=0
 		++ tBuf[nb].count;
 	}
-	AccumSpacetimeCorr (nCol );
+	AccumSpacetimeCorr (nPtls );
 }
 
 void AllocArray ()
 {
 	int nb;
-	AllocMem (valST, 3 * 8 * nFunCorr, real);
-	AllocMem2 (avAcfST, 3 * nFunCorr, nValCorr, real);
+	AllocMem (valFself, 3 * 8 * nFunCorr, real);
+	AllocMem2 (avAcfFself, 3 * nFunCorr, nValCorr, real);
+
+	AllocMem (valFcol, 3 * 8 * nFunCorr, real);
+	AllocMem2 (avAcfFcol, 3 * nFunCorr, nValCorr, real);
+
 	AllocMem2 (valDqt,  nFunCorr, nValCorr, real);
 	AllocMem2 (valGammaQT,  nFunCorr, nValCorr, real);
 	AllocMem (tBuf, nBuffCorr, TBuf);
 	for (nb = 0; nb < nBuffCorr; nb ++) {
-		AllocMem (tBuf[nb].orgST, 24 * nFunCorr, real);
-		AllocMem2 (tBuf[nb].acfST, 3 * nFunCorr, nValCorr, real);
+		AllocMem (tBuf[nb].orgFself, 24 * nFunCorr, real);
+		AllocMem2 (tBuf[nb].acfFself, 3 * nFunCorr, nValCorr, real);
+
+		AllocMem (tBuf[nb].orgFcol, 24 * nFunCorr, real);
+		AllocMem2 (tBuf[nb].acfFcol, 3 * nFunCorr, nValCorr, real);
 	}
 	// AllocArray for Diffuse ()
 	AllocMem (rrMSDAv, nValCorr, real);
@@ -544,17 +582,17 @@ void AllocArray ()
 	AllocMem (rrMQDAv, nValCorr, real);
 	AllocMem2 (avDrTable, nFunCorr,nValCorr, real);
 }
-void Alloc_more (int  nCol) {
+void Alloc_more () {
 	int nb,nr; real rho0, shell_Vol;
 	for (nb = 0; nb < nBuffCorr; nb ++) {
-		AllocMem (tBuf[nb].orgR, nCol, VecR3);
+		AllocMem (tBuf[nb].orgR, nPtls, VecR3);
 		AllocMem (tBuf[nb].rrMSD, nValCorr, real);
 		AllocMem (tBuf[nb].rrMQD, nValCorr, real);
 		AllocMem2 (tBuf[nb].DrTable, nFunCorr,nValCorr, int);
 	}
 	AllocMem (factorDr, nFunCorr, real);
 
-	rho0 = nCol/g_Vol;
+	rho0 = nPtls/g_Vol;
 	for (nr = 0; nr < nFunCorr; nr ++) {
 		if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
 		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);

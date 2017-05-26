@@ -15,25 +15,40 @@ enum{
 int error_code;
 
 static char line[MAXLINE];
+#define ATOM_VEL 0x1
+#define ATOM_DIPOLE 0x2
 typedef struct {
 	real *x,*y,*z;
 	real *mux,*muy,*muz;
+	real *vx,*vy,*vz;
+	int atomType;
 	int nTime;
 } atomstream;
 typedef struct {
 	int id,type;
+	int x,y,z;
+	int mux,muy,muz;
+	int vx,vy,vz;
+} atom_column;
+typedef struct {
+	int id,type;
 	real x,y,z;
 	real mux,muy,muz;
+	real vx,vy,vz;
 	real mu1;
+	int atomType;
 } atom;
 
 
+#define PBC_X 0x1
+#define PBC_Y 0x2
+#define PBC_Z 0x4
 
 typedef struct { 
 	real xlow,xhigh;
 	real ylow,yhigh;
 	real zlow,zhigh;
-	int pbc[3];
+	int pbcTYPE;
 } Box3;
 
 
@@ -46,8 +61,17 @@ typedef struct  {
 
 
 int make_atom(atom* col,int id, int type, 
+		real x, real y, real z) ;
+int make_atom_vel(atom* col,int id, int type, 
+		real x, real y, real z,
+		real vx,real vy, real vz) ;
+int make_atom_dipole(atom* col,int id, int type, 
 		real x, real y, real z,
 		real mux,real muy, real muz) ;
+int make_atom_all(atom* col,int id, int type, 
+		real x, real y, real z,
+		real mux,real muy, real muz,
+		real vx,real vy, real vz) ;
 Snapshot* read_dump(FILE*);
 int read_dump_OnlyCheck(FILE*);
 void read_lines(int n,FILE*);

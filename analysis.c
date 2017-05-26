@@ -57,7 +57,8 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
 int  type[]    = { 1,   1,  1,  0 };
 int  scail[]    = { 1,   1,  1,  0 };
-char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
+char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self","self-long", "self-trans", "self"},
+//char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 		 *txtCorr = "space-time corr";
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName,int);

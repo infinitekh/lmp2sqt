@@ -5,14 +5,16 @@
  *
  *       Filename:  lmp2sqt.h
  *
- *    Description:  
+ *    Description:  Evaluate intermediate scattering function from lammps dump files.
+ *    							(1.1) $F_s(q,t)$   self intermediate scattering function 
+ *    														TAG name ptl1
  *
- *        Version:  1.0
+ *        Version:  1.1
  *        Created:  2015년 11월 27일 15시 31분 18초
- *       Revision:  none
+ *       Revision:  2017. 05. 26. (금) 12:57:01 KST   1.1
  *       Compiler:  gcc
  *
- *         Author:  YOUR NAME (), 
+ *         Author:  KIM Hyeok (ekh0324@gmail.com), 
  *   Organization:  
  *
  * =====================================================================================
@@ -51,6 +53,7 @@ ALLOC(VecR3);
 		bp += strlen (#x);                   \
 		x = strtod (bp, &bp);                \
 	}
+#define TAG 1
 
 
 
@@ -79,12 +82,15 @@ void EvalOtherInformation ();
 void PrintSpacetimeCorr (FILE *fp);
 void EvalSpacetimeCorr (Snapshot * snap);
 void AllocArray();
-void Alloc_more(int);
-void AccumSpacetimeCorr (int nMol);
+void Alloc_more();
+void AccumSpacetimeCorr ();
+
 real kVal, deltaT, rVal, g_Vol;
+int nPtls;
 
 typedef struct {
-	real **acfST, *orgST;
+	real **acfFcol, *orgFcol;
+	real **acfFself, *orgFself;
 	VecR3 *orgR, *rTrue;
 	// VecR3 *orgVel; real *acfVel;
 	real *rrMSD;
@@ -95,7 +101,9 @@ typedef struct {
 } TBuf;
 
 TBuf *tBuf;
-real **avAcfST, *valST, **valDqt, **valGammaQT;
+real **avAcfFcol, *valFcol, **valDqt, **valGammaQT ;
+real **avAcfFself, *valFself;
+
 	real **avDrTable;
 	real *factorDr;
 int countCorrAv, limitCorrAv, nBuffCorr, nFunCorr, nValCorr;
