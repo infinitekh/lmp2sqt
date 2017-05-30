@@ -1,29 +1,35 @@
-#ifndef __lmp2sqt_h__ 
-#define __lmp2sqt_h__ 
-/*
- * =====================================================================================
+/*!
+ *    \file  lmp2sqt.h
+ *   \brief  
  *
- *       Filename:  lmp2sqt.h
- *
- *    Description:  Evaluate intermediate scattering function from lammps dump files.
- *    							(1.1) $F_s(q,t)$   self intermediate scattering function 
+ *  Evaluate intermediate scattering function from lammps dump files.
+ *    		\f$F_s(q,t)  \f$	(1.1)  self intermediate scattering function 
  *    														TAG name ptl1
  *
- *        Version:  1.1
- *        Created:  2015년 11월 27일 15시 31분 18초
- *       Revision:  2017. 05. 26. (금) 12:57:01 KST   1.1
- *       Compiler:  gcc
+ *  \author  KIM Hyeok (kh), ekh0324@gmail.com
  *
- *         Author:  KIM Hyeok (ekh0324@gmail.com), 
- *   Organization:  
+ *  \internal
+ *       Created:  2017년 05월 29일
+ *      Revision:  none
+ *      Compiler:  gcc
+ *  Organization:  Konkuk University
+ *     Copyright:  Copyright (c) 2017, KIM Hyeok
  *
- * =====================================================================================
+ *  This source code is released for free distribution under the terms of the
+ *  GNU General Public License as published by the Free Software Foundation.
  */
+
+#ifndef __lmp2sqt_h__ 
+#define __lmp2sqt_h__ 
+
 
 #include "common.h"
 typedef struct {
 	real R, I;
 } Cmplx;
+/*!
+ *  \brief  struct for complex real value
+ */
 typedef struct { 
 	real x,y,z;
 } VecR3;
@@ -35,12 +41,17 @@ typedef struct {
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
 	return (type *) malloc(sizeof(type)*n); \
 }
+/*!
+ *  \def ALLOC(type) 
+ *  \brief  macro for  basic allocation function named alloc_(type)
+ */
 #define Min(a,b) ( (a<b)?(a):(b))
 ALLOC(double);
 ALLOC(real);
 ALLOC(int);
 ALLOC(Cmplx);
 ALLOC(VecR3);
+
 #define CSet(a, x, y) a.R = x, a.I = y
 #define CAdd(a, b, c) a.R = b.R + c.R, a.I = b.I + c.I
 #define CSub(a, b, c) a.R = b.R - c.R, a.I = b.I - c.I
@@ -72,8 +83,18 @@ int ununused_value;
 	AllocMem (a, n1, t *);                               \
 AllocMem (a[0], (n1) * (n2), t);                     \
 for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_value] = a[ununused_value - 1] + n2;
-
-
+/*!
+ *  \def AllocMem(a, n,  t)  
+ *  @param[out] a     array of type t
+ *  @param[in] n    array size
+ *  @param      t     type 
+ */
+/*!
+ *  \def AllocMem2(a, n1, n2, t)  
+ *  @param[out] a     2 dimensitional array of type t
+ *  @param[in] n1,n2   n1 x n2 array size
+ *  @param      t     type 
+ */
 void Init_reciprocal_space(Snapshot * snap);
 
 void ZeroSpacetimeCorr ();

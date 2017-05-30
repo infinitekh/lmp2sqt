@@ -1,19 +1,20 @@
-/*
- * =====================================================================================
+/*!
+ *    \file  lmp2sqt.c
+ *   \brief  
  *
- *       Filename:  lmp2sqt.c
+ *  
  *
- *    Description:  
+ *  \author  KIM Hyeok (kh), ekh0324@gmail.com
  *
- *        Version:  1.0
- *        Created:  2015년 11월 27일 16시 04분 59초
- *       Revision:  none
- *       Compiler:  gcc
+ *  \internal
+ *       Created:  2017년 05월 29일
+ *      Revision:  none
+ *      Compiler:  gcc
+ *  Organization:  Konkuk University
+ *     Copyright:  Copyright (c) 2017, KIM Hyeok
  *
- *         Author:  YOUR NAME (), 
- *   Organization:  
- *
- * =====================================================================================
+ *  This source code is released for free distribution under the terms of the
+ *  GNU General Public License as published by the Free Software Foundation.
  */
 
 #include "lmp2sqt.h"
@@ -73,6 +74,12 @@ void PrintNameList (FILE *fp);
 int GetNameList (int argc, char **argv);
 
 int main(int argc, char** argv) {
+	/*!
+	 *  \brief  main 함수. 설명이 필요없다. 
+	 *
+	 *  \param   argc 
+	 *  \param   argv 
+	 */
 	char filename[100];
 	int n_snap;
 	if(argc <2) {
@@ -117,6 +124,9 @@ int main(int argc, char** argv) {
 }
 
 void AccumSpacetimeCorr ()
+	/*!
+	 *  \brief  계산된 현재 시간의 SpaceTime correlation을 누적한다. 
+	 */
 {
 	real fac;
 	int j,  nb, nr, n;
@@ -164,6 +174,9 @@ void AccumSpacetimeCorr ()
 
 
 void InitSpacetimeCorr ()
+	/*!
+	 *  \brief  프로그램 초기에 시간 평균을 낼 수 있도록 index를 부여하는 과정
+	 */
 {
 	int nb;
 	if (nBuffCorr > nValCorr) {
@@ -178,6 +191,10 @@ void InitSpacetimeCorr ()
 	ZeroSpacetimeCorr ();
 }
 void ZeroSpacetimeCorr ()
+	/*!
+	 *  \brief  출력 후 또는, 프로그램 시작시 평균 계산을 위한 메모리를 
+	 *  			0값으로 초기화
+	 */
 {
 	int j, n, nr;
 	countCorrAv = 0;
@@ -194,6 +211,10 @@ void ZeroSpacetimeCorr ()
 		for (nr = 0; nr < nFunCorr; nr ++) avDrTable[nr][j]= 0.;
 }
 void EvalOtherInformation () 
+	/*!
+	 *  \brief  \f$ F(q,t) \f$를 출력전에 미분해서 data를 뽑아낸다. 
+	 *
+	 */
 {                            // this evaluation yield analysis.c
 #define Fqt_FIX_q avAcfFcol[3*(j) +2] 
 	int j,  n,  ppT, pT, cT, nT, nnT;
@@ -223,6 +244,11 @@ void EvalOtherInformation ()
 
 
 void PrintSpacetimeCorr (FILE *fp)
+	/*!
+	 *  \brief  결과를 출력하는 함수
+	 *
+	 *  \param  fp output file descriptor
+	 */
 {
 	extern real kVal;
 	real tVal;
@@ -380,6 +406,19 @@ void PrintSpacetimeCorr (FILE *fp)
 }
 
 void EvalSpacetimeCorr(Snapshot* snap)
+	/*!
+	 *  \brief  space time correlation을 계산한다. 
+	 *  				q space value는 x, y, z 방향 세개의 방향으로 
+	 *  				longitudinal version, translational version과 가장 기본적인 방향성분 없는 density
+	 *  				version 3개를 구함.
+	 *						기계 편의적으로 코드가 짜져 있어서 사람이 보기에 별로 직관적이지 못해서 고칠 예정이고 
+	 *			거기다가 참조한 기본 코드에서 magnetization에 대한 version으로 바꾸면서 많이 복잡해지고 좋지 
+	 *			않아짐. 그리고 개인적으로 속도 vector도 다시 정보로 가져올 것이기 때문에 바뀔 야정 
+	 *
+	 * 			PREV. $M_T(q,t)$ $M_L(q,t)$ 
+	 *			Todo. 
+	 *  \param  Snapshot* Snapshot 포인터 
+	 */
 {
 	real b, c, c0, c1, c2, s, s1, s2, w;
 	extern real kVal;
@@ -558,6 +597,12 @@ void EvalSpacetimeCorr(Snapshot* snap)
 }
 
 void AllocArray ()
+	/*!
+	 *  \brief   이름그대로 memory 할다함. 
+	 *       		대상은 valFself   self  intermediate scattering function과
+	 *     				valFcol     collective intermediate scatterring function 
+	 *     	등.
+	 */
 {
 	int nb;
 	AllocMem (valFself, 3 * 8 * nFunCorr, real);
@@ -583,6 +628,10 @@ void AllocArray ()
 	AllocMem2 (avDrTable, nFunCorr,nValCorr, real);
 }
 void Alloc_more () {
+	/*!
+	 *  \brief  Alloc_more 
+	 *
+	 */
 	int nb,nr; real rho0, shell_Vol;
 	for (nb = 0; nb < nBuffCorr; nb ++) {
 		AllocMem (tBuf[nb].orgR, nPtls, VecR3);
@@ -608,6 +657,17 @@ void Alloc_more () {
 
 
 int GetNameList (int argc, char **argv)
+	/* 
+	 * ===  FUNCTION  ======================================================================
+	 *         Name:  GetNameList
+	 *  Description:  Rapaport 책에서 가져온 코드로, 
+	 *  						Name  value 
+	 *  						Name2 value 
+	 *  				형식으로 되어 있는 초기값을 불러오는데 사용됨. 
+	 *  				지원하는 형태는 integer와 real 값을 받아다가 초기값 배정함. 
+	 *  				잘 작동함. 
+	 * =====================================================================================
+	 */
 {
 	int  j, k, match, ok;
 	char buff[80], *token;
@@ -690,6 +750,11 @@ int GetNameList (int argc, char **argv)
 	return (ok);
 }
 void PrintNameList (FILE *fp)
+	/*!
+	 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
+	 *
+	 *  \param  fp  FILE* file descriptor
+	 */
 {
 	int j, k;
 	fprintf (fp, "NameList -- data\n");
@@ -730,14 +795,16 @@ void PrintNameList (FILE *fp)
 }
 
 void Init_reciprocal_space(Snapshot * snap) {
-	/*-----------------------------------------------------------------------------
-	 *  원래는 delta_k 값이 2pi/L보다 작을시에 simulation 박스를 복사하여 
-	 *  replica를 포함하는 공간에 대해서 계산하는 식으로 하려고 하였으나 
-	 *  복소평면 상에서 그려보았을 때 전부 더하면 0이 되는 관계로 
-	 *  더이상 구할 수 없고 아무 의미 없음이 확인하었다. 
-	 *  periodic boundary라 아닐 때는 상관없이 좋은 결과를 낼 수 있을 것이다. 
-	 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
-	 *-----------------------------------------------------------------------------*/
+	/*!
+	 *  \brief  뭔가 실패한 시도. 관심 가질 필요 없음. 
+	 *           원래는 delta_k 값이 2pi/L보다 작을시에 simulation 박스를 복사하여 
+	 *           replica를 포함하는 공간에 대해서 계산하는 식으로 하려고 하였으나 
+	 *           복소평면 상에서 그려보았을 때 전부 더하면 0이 되는 관계로 
+	 *           더이상 구할 수 없고 아무 의미 없음이 확인하었다. 
+	 *           periodic boundary라 아닐 때는 상관없이 좋은 결과를 낼 수 있을 것이다. 
+	 *           고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
+	 *  \param  snap Snaptshot* 스냅샷 포인터
+	 */
 	extern real kVal;
 	int n_mul;
 	real L[3];
