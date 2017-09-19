@@ -1,5 +1,6 @@
 
 #include "snapshot.h"
+#include <stdbool.h>
 
 #define COPY(type) int copy_ ## type (type * a, type * b) {    \
 	if (a==NULL || b==NULL) return 255; \
@@ -44,7 +45,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 	real vx,vy,vz;
 	int i;
 	atom* p_atom;
-#define FAIL 0
+#define FAIL false
 #define SUCCESS n_atoms
 	read_lines(1,fp);
 	if( strncmp(s_timestep,line,i_timestep) !=0) {
@@ -53,9 +54,11 @@ int read_dump_OnlyCheck( FILE* fp) {
 
 	read_lines(1,fp);
 	timestep = atol(line);
+#ifndef NDEBUG
 	fprintf(stderr,"atol(line) = %ld\n"
 			"atoi(line) = %d\n"
 			, timestep,atoi(line));
+#endif
 
 	read_lines(1,fp);
 	if( strncmp(s_n_atoms,line,i_n_atoms) !=0)
@@ -100,11 +103,11 @@ int read_dump_OnlyCheck( FILE* fp) {
 //	Box3 box = {xlow,xhigh,ylow,yhigh,zlow,zhigh, {pbc[0],pbc[1],pbc[2]}};
 	copy_Box3( &snap->box,  &box);
 
-	error( (char*)s_timestep);
+//	error( (char*)s_timestep);
 //	fprintf(stderr,"%ld\n", timestep);
-	error((char*)s_n_atoms);
+//	error((char*)s_n_atoms);
 //	fprintf(stderr,"%d\n", snap->n_atoms);
-	error((char*)s_box_bounds);
+//	error((char*)s_box_bounds);
 //	fprintf(stderr,"%f %f\n", snap->box.xlow,snap->box.xhigh);
 //	fprintf(stderr,"%f %f\n", snap->box.ylow,snap->box.yhigh);
 //	fprintf(stderr,"%f %f\n", snap->box.zlow,snap->box.zhigh);
@@ -193,9 +196,11 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 
 	read_lines(1,fp);
 	timestep = atol(line);
+#ifndef NDEBUG
 	fprintf(stderr,"atol(line) = %ld\n"
 			"atoi(line) = %d\n"
 			, timestep,atoi(line));
+#endif
 
 	read_lines(1,fp);
 	if( strncmp(s_n_atoms,line,i_n_atoms) !=0)
@@ -333,9 +338,11 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 	return snap;
 }
 void* error( char string[MAXLINE] ) {
+#ifndef NDEBUG
 	fputs( string, stderr );
 	fputs( "\n", stderr );
 	error_code =1;
+#endif
 	return NULL;
 	//	exit(1);
 }

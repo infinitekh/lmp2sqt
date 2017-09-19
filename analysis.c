@@ -80,8 +80,8 @@ int main ( int argc, char **argv)
 	real valGamma, valDq, valSq, Fq0;
 	int doFourier,doWindow;
 	int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
-	int nData,nFunCorr,nSet,nSetSkip,
-			nv, nValCorr, NValDiff;
+	int nData,nCSpatial,nSet,nSetSkip,
+			nv, nCTime, NValDiff;
 	real fFqtUnderLimit= exp(-2.5);
 	char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 	FILE *input, *output;
@@ -185,8 +185,8 @@ int main ( int argc, char **argv)
 		bp = fgets (buff, BUFF_LEN, input);
 		if (*bp == CHAR_MINUS) break;
 		NameVal (deltaT);
-		NameVal (nFunCorr);
-		NameVal (nValCorr);
+		NameVal (nCSpatial);
+		NameVal (nCTime);
 		NameVal (kVal);
 		//		NameString (lmpFileName);
 	}
@@ -197,16 +197,16 @@ int main ( int argc, char **argv)
 	 *   Alloc memory and initialization
 	 *-----------------------------------------------------------------------------*/
 	for (j = 0; j < nDataTypes; j ++) {
-		corrSum[j] = alloc_real(nFunCorr * nValCorr);
-		corrSumD1[j] = alloc_real(nFunCorr * nValCorr);
-		Dqt[j] = alloc_real(nFunCorr * nValCorr);
-		Fqt[j] = alloc_real(nFunCorr * nValCorr);
-		Hqt[j] = alloc_real(nFunCorr * nValCorr);
-		GammaQT[j] = alloc_real(nFunCorr * nValCorr);
+		corrSum[j] = alloc_real(nCSpatial * nCTime);
+		corrSumD1[j] = alloc_real(nCSpatial * nCTime);
+		Dqt[j] = alloc_real(nCSpatial * nCTime);
+		Fqt[j] = alloc_real(nCSpatial * nCTime);
+		Hqt[j] = alloc_real(nCSpatial * nCTime);
+		GammaQT[j] = alloc_real(nCSpatial * nCTime);
 
-		corrSumSq[j] = alloc_real( nFunCorr * nValCorr);
-		corrSumErr[j] = alloc_real( nFunCorr * nValCorr);
-		for (n =0; n < nFunCorr* nValCorr; n++) {
+		corrSumSq[j] = alloc_real( nCSpatial * nCTime);
+		corrSumErr[j] = alloc_real( nCSpatial * nCTime);
+		for (n =0; n < nCSpatial* nCTime; n++) {
 			corrSum [j][n] = 0;
 			corrSumD1 [j][n] = NAN;
 			Dqt [j][n] = NAN;
@@ -220,7 +220,7 @@ int main ( int argc, char **argv)
 
 	// The Preamble
 	if (doFourier)
-		work = alloc_Cmplx( 2 * (nValCorr -1));
+		work = alloc_Cmplx( 2 * (nCTime -1));
 	nData =0;
 	nSet =0;
 	while (1) {
@@ -236,20 +236,20 @@ int main ( int argc, char **argv)
 				printf("## header check : %s \n", buff);
 #endif
 
-				for ( n =0; n<nValCorr; n ++) {
+				for ( n =0; n<nCTime; n ++) {
 					bp = fgets (buff, BUFF_LEN, input);
 #ifndef NDEBUG
 					puts(buff);
 #endif
-					for ( k = 0; k < nFunCorr; k += 1 ) {
+					for ( k = 0; k < nCSpatial; k += 1 ) {
 						w = strtod (bp, &bp);
 #ifndef NDEBUG
 						printf(" %8.4f",w);
 #endif
-						corrSum[j][k * nValCorr + n] += w;
-						corrSumSq[j][k * nValCorr + n] += Sqr(w);
+						corrSum[j][k * nCTime + n] += w;
+						corrSumSq[j][k * nCTime + n] += Sqr(w);
 /* 						sleep(1);
- * 						printf("why is this value nan? %f %f  \n",corrSum[j][k*nValCorr +n], w);
+ * 						printf("why is this value nan? %f %f  \n",corrSum[j][k*nCTime +n], w);
  */
 					}
 #ifndef NDEBUG
@@ -267,7 +267,7 @@ int main ( int argc, char **argv)
 	printf ("%d\n", nData);
 
 	for ( j = 0; j < nDataTypes; j += 1 ) {
-		for ( n = 0; n < nFunCorr*nValCorr; n += 1 ) {
+		for ( n = 0; n < nCSpatial*nCTime; n += 1 ) {
 			corrSum[j][n] /= nData;
 			corrSumSq[j][n] = sqrt ( corrSumSq[j][n]/nData-Sqr(corrSum[j][n]));
 			corrSumErr[j][n] =  corrSumSq[j][n]/ sqrt(nData);
@@ -278,23 +278,23 @@ int main ( int argc, char **argv)
 	if (doFourier) {
 
 		for ( j = 0; j < 3; j += 1 ) {
-			for ( k = 0; k < nFunCorr; k += 1 ) {
-				for ( n = 0; n < nValCorr; n += 1 ) {
-					if (doWindow) damp = (nValCorr - n ) / (nValCorr +.5);
+			for ( k = 0; k < nCSpatial; k += 1 ) {
+				for ( n = 0; n < nCTime; n += 1 ) {
+					if (doWindow) damp = (nCTime - n ) / (nCTime +.5);
 					else damp = 1.;
-					CSet (work[n], corrSum[j][k * nValCorr +n] * damp,0.);
+					CSet (work[n], corrSum[j][k * nCTime +n] * damp,0.);
 				}
 
-				for ( n = nValCorr; n < 2*(nValCorr-1); n += 1 ) 
-					work[n] = work[2* (nValCorr -1 ) - n ];
-				FftComplex (work, 2 * nValCorr -2);
+				for ( n = nCTime; n < 2*(nCTime-1); n += 1 ) 
+					work[n] = work[2* (nCTime -1 ) - n ];
+				FftComplex (work, 2 * nCTime -2);
 
-				for ( n = 0; n < nValCorr; n += 1 ) 
-					corrSum[j][k * nValCorr +n] = work[n].R;
+				for ( n = 0; n < nCTime; n += 1 ) 
+					corrSum[j][k * nCTime +n] = work[n].R;
 			}
 		}
 		omegaMax= Min(omegaMax, M_PI / deltaTCorr);
-		nv = nValCorr * omegaMax / (M_PI / deltaTCorr);
+		nv = nCTime * omegaMax / (M_PI / deltaTCorr);
 	}   //  print A(q,omega) or A(r,omega)
 	else {   // print A(q,t), or A(r,t)
 		for ( j = 0; j < nDataTypes; j += 1 ) {
@@ -307,9 +307,9 @@ int main ( int argc, char **argv)
 				fprintf(output,"#kVal Sq Gamma Dq\n"
 						"#deltaT = %9.4f\n", deltaT);
 				int nValDiffTemp=NValDiff;
-				for (k = 0; k < nFunCorr; k ++) {
+				for (k = 0; k < nCSpatial; k ++) {
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
-					Fq0 = corrSum[j] [k*nValCorr];
+					Fq0 = corrSum[j] [k*nCTime];
 
 /*-----------------------------------------------------------------------------
 *      get slope on nValDiff time or where is return of function lower than 0.2
@@ -328,7 +328,7 @@ int main ( int argc, char **argv)
 #define Xlogp2 (log(corrSum[j][nnT]))
 #define Xlogp1 (log(corrSum[j][nT]) )
 #define Xlog   (log(corrSum[j][cT]) )
-					cT = k*nValCorr;
+					cT = k*nCTime;
 					nnT = cT+2; nT = cT+1;  //Forward Records
 					corrSumD1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					GammaQT[j] [cT] =   ( (-Xlogp2+4.*Xlogp1 -3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
@@ -336,7 +336,7 @@ int main ( int argc, char **argv)
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
 
-					for (cT= k*nValCorr+1; cT < (k+1)*nValCorr-1; cT++) {
+					for (cT= k*nCTime+1; cT < (k+1)*nCTime-1; cT++) {
 						 nT = cT+1;   //Forward Records
 						 pT = cT-1;   //Backward Records 
 
@@ -360,8 +360,8 @@ int main ( int argc, char **argv)
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
-					cT = cT < k*nValCorr +NValDiff  ? cT: k*nValCorr+NValDiff;
-					fprintf(output, "%lf %le %le %le %le %le %le \n", qVal, corrSum[j][k*nValCorr], corrSumD1[j][k*nValCorr], 
+					cT = cT < k*nCTime +NValDiff  ? cT: k*nCTime+NValDiff;
+					fprintf(output, "%lf %le %le %le %le %le %le \n", qVal, corrSum[j][k*nCTime], corrSumD1[j][k*nCTime], 
 							corrSum[j][cT],corrSumD1[j][cT], 
 							GammaQT[j][cT], Dqt[j][cT]);
 
@@ -370,19 +370,19 @@ int main ( int argc, char **argv)
 
 
 				//      scaling by function of  t=0
-				for ( k = 0; k < nFunCorr; k += 1 ) {
-					for ( n = 1; n < nValCorr; n += 1 ){ 
-						Fqt [j][k*nValCorr + n] = corrSum [j][k*nValCorr + n] ;
-						corrSum[j][k * nValCorr +n] /= corrSum[j][k*nValCorr];
+				for ( k = 0; k < nCSpatial; k += 1 ) {
+					for ( n = 1; n < nCTime; n += 1 ){ 
+						Fqt [j][k*nCTime + n] = corrSum [j][k*nCTime + n] ;
+						corrSum[j][k * nCTime +n] /= corrSum[j][k*nCTime];
 					}
-					Fqt [j][k*nValCorr ] = corrSum [j][k*nValCorr ] ;
-					corrSum[j][k * nValCorr] = 1.;
+					Fqt [j][k*nCTime ] = corrSum [j][k*nCTime ] ;
+					corrSum[j][k * nCTime] = 1.;
 				}
 				}
 			}
-			tMax = Min ( tMax, (nValCorr -1) * deltaTCorr);
-			nv = nValCorr * tMax /  (nValCorr - 1) / deltaTCorr;
-			printf("nv = %d, tMax = %f, nValCorr = %d, deltaTCorr = %f\n" , nv ,tMax, nValCorr, deltaTCorr);
+			tMax = Min ( tMax, (nCTime -1) * deltaTCorr);
+			nv = nCTime * tMax /  (nCTime - 1) / deltaTCorr;
+			printf("nv = %d, tMax = %f, nCTime = %d, deltaTCorr = %f\n" , nv ,tMax, nCTime, deltaTCorr);
 		} // else end
 
 		char fNGammaQT[100] ;
@@ -412,12 +412,12 @@ int main ( int argc, char **argv)
  * 			fprintf(fFqt,"%s\n", header[j]);
  * 			fprintf(fFqt1,"%s\n", header[j]);
  */
-  		fprintf(fGammaQT,"%d", nFunCorr);
-  		fprintf(fDqt,"%d", nFunCorr);
-  		fprintf(fHqt,"%d", nFunCorr);
-  		fprintf(fFqt,"%d", nFunCorr);
-  		fprintf(fFqt1,"%d", nFunCorr);
-			for ( k = 0; k < nFunCorr; k += 1 ) {
+  		fprintf(fGammaQT,"%d", nCSpatial);
+  		fprintf(fDqt,"%d", nCSpatial);
+  		fprintf(fHqt,"%d", nCSpatial);
+  		fprintf(fFqt,"%d", nCSpatial);
+  		fprintf(fFqt1,"%d", nCSpatial);
+			for ( k = 0; k < nCSpatial; k += 1 ) {
 				x= (k+1)*kVal; 
 				fprintf (fGammaQT, " %9.4e", x);
 				fprintf (fDqt, " %9.4e", x);
@@ -441,13 +441,13 @@ int main ( int argc, char **argv)
 				fprintf (fFqt, "%9.4e", x);
 				fprintf (fFqt1, "%9.4e", x);
 
-				for ( k = 0; k < nFunCorr; k += 1 ) {
-					printf (" %9.4e", corrSum[j][k * nValCorr +n]);
-					fprintf (fGammaQT," %9.4e", GammaQT[j][k * nValCorr +n]);
-					fprintf (fDqt," %9.4e", Dqt[j][k * nValCorr +n]);
-					fprintf (fHqt," %9.4e", Hqt[j][k * nValCorr +n]);
-					fprintf (fFqt," %9.4e", Fqt[j][k * nValCorr +n]);
-					fprintf (fFqt1," %9.4e", corrSumD1[j][k * nValCorr +n]);
+				for ( k = 0; k < nCSpatial; k += 1 ) {
+					printf (" %9.4e", corrSum[j][k * nCTime +n]);
+					fprintf (fGammaQT," %9.4e", GammaQT[j][k * nCTime +n]);
+					fprintf (fDqt," %9.4e", Dqt[j][k * nCTime +n]);
+					fprintf (fHqt," %9.4e", Hqt[j][k * nCTime +n]);
+					fprintf (fFqt," %9.4e", Fqt[j][k * nCTime +n]);
+					fprintf (fFqt1," %9.4e", corrSumD1[j][k * nCTime +n]);
 				}
 				printf ("\n");
 				fprintf ( fGammaQT,"\n");

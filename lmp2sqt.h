@@ -22,8 +22,14 @@
 #ifndef __lmp2sqt_h__ 
 #define __lmp2sqt_h__ 
 
-
+/* #####   HEADER FILE INCLUDES   ################################################### */
 #include "common.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+#include "snapshot.h"
+/* #####   EXPORTED TYPE DEFINITIONS   ############################################## */
 typedef struct {
 	real R, I;
 } Cmplx;
@@ -33,11 +39,20 @@ typedef struct {
 typedef struct { 
 	real x,y,z;
 } VecR3;
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
-#include "snapshot.h"
+typedef struct {
+	real **acfFcol, *orgFcol;
+	real **acfFself, *orgFself;
+	VecR3 *orgR, *rTrue;
+	// VecR3 *orgVel; real *acfVel;
+	real *rrMSD;
+	real *rrMQD;
+	int **DrTable;
+	int count;
+	int countDiff;
+} TBuf;
+
+
+/* #####   EXPORTED FUNCTION DECLARATIONS   ######################################### */
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
 	return (type *) malloc(sizeof(type)*n); \
 }
@@ -65,7 +80,15 @@ ALLOC(VecR3);
 		x = strtod (bp, &bp);                \
 	}
 #define TAG 1
-
+#define DIMEN  (3)                                /*!< \brief 3d - > 3 */
+#define DOF  (2*(1+3+3))                        /*!< \brief 2x(density+velocity+magnet) */
+#define FDOF (DIMEN*DOF)                          /*!< \brief memory for correlator */
+#define AVDOF  5                                //!< (vel,mag)*(long,trans) + density
+int n_FDOF = FDOF;
+int n_DOF = DOF;
+int n_AVDOF = AVDOF;
+enum  { DEN=6, V_X=0,V_Y=1,V_Z=2, M_X=3,M_Y=4,M_Z=5,
+	V_LONG=0,V_TRANS=1,M_LONG=2,M_TRANS=3, AV_DEN=4} ;
 
 
 #define CSet(a,x,y) 																		\
@@ -77,8 +100,10 @@ ALLOC(VecR3);
  */
 void* unused_pointer;
 int ununused_value;
+long long ll_mem_size=0;
 #define AllocMem(a, n, t)                       \
-	a = (t *) malloc ((n) * sizeof (t))     
+	a = (t *) malloc ((n) * sizeof (t));      \
+  ll_mem_size += n* sizeof(t);
 #define AllocMem2(a, n1, n2, t)                        \
 	AllocMem (a, n1, t *);                               \
 AllocMem (a[0], (n1) * (n2), t);                     \
@@ -95,6 +120,7 @@ for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_valu
  *  @param[in] n1,n2   n1 x n2 array size
  *  @param      t     type 
  */
+/* #####   EXPORTED FUNCTION DECLARATIONS   ######################################### */
 void Init_reciprocal_space(Snapshot * snap);
 
 void ZeroSpacetimeCorr ();
@@ -106,20 +132,11 @@ void AllocArray();
 void Alloc_more();
 void AccumSpacetimeCorr ();
 
+/* #####   EXPORTED DATA TYPES   #################################################### */
 real kVal, deltaT, rVal, g_Vol;
+real L ;                                        /*!< \brief box length */
 int nPtls;
 
-typedef struct {
-	real **acfFcol, *orgFcol;
-	real **acfFself, *orgFself;
-	VecR3 *orgR, *rTrue;
-	// VecR3 *orgVel; real *acfVel;
-	real *rrMSD;
-	real *rrMQD;
-	int **DrTable;
-	int count;
-	int countDiff;
-} TBuf;
 
 TBuf *tBuf;
 real **avAcfFcol, *valFcol, **valDqt, **valGammaQT ;
@@ -127,12 +144,10 @@ real **avAcfFself, *valFself;
 
 	real **avDrTable;
 	real *factorDr;
-int countCorrAv, limitCorrAv, nBuffCorr, nFunCorr, nValCorr;
+int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime;
 real *rrMSDAv;
 real *rrMQDAv;
 real *rrDt;
-int countDiffuseAv;
 
-real g_L;    // only used cubic simulation box case
 
 #endif
