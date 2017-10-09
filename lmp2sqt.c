@@ -65,7 +65,7 @@ typedef struct {
 
 NameList nameList[] = {
 	NameR   (rVal),
-//	NameR   (kVal),
+	NameR   (kVal),
 	NameR   (deltaT),
 	NameI  	(limitCorrAv),
 	NameI   (nCBuffer),       // number of simul. time seq
@@ -122,9 +122,9 @@ int main(int argc, char** argv) {
 		// if ( flag_Max_eval)
 		if (n_snap <5){
 			fprintf(stderr,"The # of snap is too small(<5)\n"
-				"We would  not use 	this file(%s)!!\n", filename);
+					"We would  not use 	this file(%s)!!\n", filename);
 			files_on [opt_num] = false;
-//			return 23;
+			//			return 23;
 		}
 		else {
 			if (nCBuffer < 1) {
@@ -138,7 +138,7 @@ int main(int argc, char** argv) {
 
 	PrintNameList2File(stdout);
 	UpdateNameList ();
-	
+
 	AllocArray();
 	ZeroSpacetimeCorr ();
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
@@ -179,7 +179,7 @@ int main(int argc, char** argv) {
 
 	}
 	Number_call_Print ++;
-	
+
 	return 0;
 }
 
@@ -195,7 +195,9 @@ void AccumSpacetimeCorr ()
 			// S(q,t), M(q,t) part
 			for (j = 0; j < AVDOF * nCSpatial; j ++) {
 				for (n = 0; n < nCTime; n ++)
-					avAcfFcol[j][n] += tBuf[nb].acfFcol[j][n];
+					avF_qq2[j][n] += tBuf[nb].F_qq2[j][n];
+				avF_s_qq2[j][n] += tBuf[nb].F_s_qq2[j][n];
+				avF_d_qq2[j][n] += tBuf[nb].F_d_qq2[j][n];
 			}
 			// Diffuse Part
 			for (j = 0; j < nCTime; j ++) {
@@ -214,7 +216,6 @@ void AccumSpacetimeCorr ()
 	}
 }
 
-
 void InitSpacetimeCorr ()
 	/*!
 	 *  \brief  프로그램 초기에 시간 평균을 낼 수 있도록 index를 부여하는 과정
@@ -230,8 +231,9 @@ void InitSpacetimeCorr ()
 		tBuf[nb].count = - nb * nCTime / nCBuffer;
 		tBuf[nb].countDiff = - nb * nCTime / nCBuffer;
 	}
-//	ZeroSpacetimeCorr ();
+	//	ZeroSpacetimeCorr ();
 }
+
 void ZeroSpacetimeCorr ()
 	/*!
 	 *  \brief  출력 후 또는, 프로그램 시작시 평균 계산을 위한 메모리를 
@@ -242,8 +244,9 @@ void ZeroSpacetimeCorr ()
 	countCorrAv = 0;
 	for (j = 0; j < AVDOF * nCSpatial; j ++) {
 		for (n = 0; n < nCTime; n ++) {
-			avAcfFcol[j][n] = 0.;
-			avAcfFself[j][n] = 0.;
+			avF_qq2[j][n] = 0.;
+			avF_s_qq2[j][n] = 0.;
+			avF_d_qq2[j][n] = 0.;
 		}
 	}
 
@@ -254,13 +257,14 @@ void ZeroSpacetimeCorr ()
 	for (j = 0; j < nCTime; j ++) 
 		for (nr = 0; nr < nCSpatial; nr ++) avDrTable[nr][j]= 0.;
 }
+
 void EvalOtherInformation () 
 	/*!
 	 *  \brief  \f$ F(q,t) \f$를 출력전에 미분해서 data를 뽑아낸다. 
 	 *
 	 */
 {                            // this evaluation yield analysis.c
-#define Fqt_FIX_q avAcfFcol[AVDOF*(j) +AV_DEN] 
+#define Fqt_FIX_q avF_qq2[AVDOF*(j) +AV_DEN] 
 	int j,  n,  ppT, pT, cT, nT, nnT;
 	extern real kVal;
 	real kVal2 = kVal*kVal;
@@ -283,14 +287,17 @@ void EvalOtherInformation ()
 			valDqt [j][n] = - valGammaQT[j][n] / (kVal2*j*j) ;
 		}
 	}
-
 }
+
 void prePrintProcess () 
 {
 	real scale_factor = 1./(3.*nPtls*countCorrAv);
 	for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
-		for (int nt = 0; nt < nCTime; nt ++)
-			avAcfFcol[nr][nt] *= scale_factor;
+		for (int nt = 0; nt < nCTime; nt ++){
+			avF_qq2[nr][nt] *= scale_factor;
+			avF_s_qq2[nr][nt] *= scale_factor;
+			avF_d_qq2[nr][nt] *= 0.5*scale_factor;
+		}
 	}
 	//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
 	/*-----------------------------------------------------------------------------
@@ -321,8 +328,10 @@ void PrintSpacetimeCorr (FILE *fp)
 	real tVal;
 	int j, nType, n, k2, nr;
 	Number_call_Print ++;
-//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
-	char *header[] = {"cur-long", "cur-trans", "mag-long", "mag-trans","density", "vanHove-self","self-long", "self-trans", "self"};
+	//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
+	char *header[] = {"cur-long", "cur-trans", "mag-long", "mag-trans","density", "vanHove-self",
+		"self-long", "self-trans", "self",
+		"cross-long", "cross-trans", "cross"};
 	fprintf (fp, "space-time corr\n");
 	//for (nType = 0; k < 3; k ++) {
 	for (k2 = 0; k2 < sizeof(header)/ sizeof(char*); k2 ++) {
@@ -337,7 +346,7 @@ void PrintSpacetimeCorr (FILE *fp)
 		switch ( k2) {
 			case 0: case 1:  case 2: case 3: case 4:
 				/*!-----------------------------------------------------------------------------
-				 *  avAcfFcol[AVDOF*i+nType][j] -> F(q_i,t_j) 
+				 *  avF_qq2[AVDOF*i+nType][j] -> F(q_i,t_j) 
 				 *  nType=0 longi  - cur
 				 *  nType=1 tranv  - cur
 				 *  nType=2 longi  - magnetic
@@ -350,7 +359,7 @@ void PrintSpacetimeCorr (FILE *fp)
 					 * 			fprintf (fp, "%7.3f", deltaT);
 					 */
 					for (int nr = 0; nr < nCSpatial; nr ++){
-						fprintf (fp, " %8.4e", avAcfFcol[AVDOF * nr + nType][nt]);
+						fprintf (fp, " %8.4e", avF_qq2[AVDOF * nr + nType][nt]);
 					}
 					fprintf (fp, "\n");
 				} 
@@ -367,7 +376,7 @@ void PrintSpacetimeCorr (FILE *fp)
 				break;
 			case 6: case 7: case 8: 
 				/*-----------------------------------------------------------------------------
-				 *  avAcfFself[3*i+nType][j] -> F_s(q_i,t_j) k=0 longi k=1 tranv k=2 density
+				 *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) k=0 longi k=1 tranv k=2 density
 				 *-----------------------------------------------------------------------------*/
 				nType= (k2-6)%3;
 				for (int nt = 0; nt < nCTime; nt ++) {
@@ -375,7 +384,22 @@ void PrintSpacetimeCorr (FILE *fp)
 					 * 			fprintf (fp, "%7.3f", deltaT);
 					 */
 					for (int nr = 0; nr < nCSpatial; nr ++){
-						fprintf (fp, " %8.4e", avAcfFself[AVDOF * nr + nType][nt]);
+						fprintf (fp, " %8.4e", avF_s_qq2[AVDOF * nr + nType][nt]);
+					}
+					fprintf (fp, "\n");
+				} 
+				break;
+			case 9: case 10: case 11: 
+				/*-----------------------------------------------------------------------------
+				 *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) k=0 longi k=1 tranv k=2 density
+				 *-----------------------------------------------------------------------------*/
+				nType= (k2-9)%3;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nr = 0; nr < nCSpatial; nr ++){
+						fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
 					}
 					fprintf (fp, "\n");
 				} 
@@ -394,22 +418,22 @@ void PrintEtc () {
 	char filename2[100];
 	char filename3[100];
 	int nfile = 0;
-		sprintf(filename1, "Dt%03d.info",nfile);
-		sprintf(filename2, "vanHove%03d.info",nfile);
-		sprintf(filename3, "SSF%03d.info",nfile);
-		//printf( "access(%s) -> return %d", filename1, access(filename1,F_OK));
-//		
-//		{
-//			while( 0 == access(filename1,F_OK) ) {
-//				/* 		fprintf(stderr, "Files are  exist at least . (%03d) \n", nfile);
-//				 * 		sleep(1);
-//				 */
-//				nfile++;
-//				sprintf(filename1, "Dt%03d.info",nfile);
-//				sprintf(filename2, "vanHove%03d.info",nfile);
-//				sprintf(filename3, "SSF%03d.info",nfile);
-//			}
-//		}
+	sprintf(filename1, "Dt%03d.info",nfile);
+	sprintf(filename2, "vanHove%03d.info",nfile);
+	sprintf(filename3, "SSF%03d.info",nfile);
+	//printf( "access(%s) -> return %d", filename1, access(filename1,F_OK));
+	//		
+	//		{
+	//			while( 0 == access(filename1,F_OK) ) {
+	//				/* 		fprintf(stderr, "Files are  exist at least . (%03d) \n", nfile);
+	//				 * 		sleep(1);
+	//				 */
+	//				nfile++;
+	//				sprintf(filename1, "Dt%03d.info",nfile);
+	//				sprintf(filename2, "vanHove%03d.info",nfile);
+	//				sprintf(filename3, "SSF%03d.info",nfile);
+	//			}
+	//		}
 
 	/* 	FILE* fp_Dq = fopen(filename1,"w");
 	 * 	fprintf (fp_Dq, "# dt = %7.3f\n", deltaT);
@@ -428,7 +452,7 @@ void PrintEtc () {
 	 * 	for (n = 0; n < nCTime; n ++) {   
 	 * 		fprintf (fp_Ft, "%8.4f" , n*deltaT );
 	 * 		for (j = 0; j < nCSpatial; j ++) {
-	 * 			fprintf (fp_Ft, " %8.4e" ,  avAcfFcol[(3*j)+2][n]/avAcfFcol[(3*j)+2][0]);
+	 * 			fprintf (fp_Ft, " %8.4e" ,  avF_qq2[(3*j)+2][n]/avF_qq2[(3*j)+2][0]);
 	 * 		}
 	 * 		fprintf (fp_Ft, "\n");
 	 * 	}
@@ -438,7 +462,7 @@ void PrintEtc () {
 	FILE* fp_SSF = fopen(filename3,"w");
 	for (int nr = 0; nr < nCSpatial; nr ++) {
 		fprintf (fp_SSF, "%8.4f" " %8.4e""\n" , (nr+1)*kVal , 
-				avAcfFcol[(AVDOF*nr)+AV_DEN][0]);
+				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
 	}
 	fclose(fp_SSF);
 
@@ -521,10 +545,19 @@ void EvalSpacetimeCorr(Snapshot* snap)
 		Alloc_more();
 		first_run++;
 	}
-	
+
 	atom* col_i;
 	// zero initalize current time value
-	for (j = 0; j < FDOF * nCSpatial; j ++) valFcol[j] = 0.;
+	for (j = 0; j < FDOF * nCSpatial; j ++) {
+		rho_q1[j] = 0.;
+	}
+	for (n=0; n<nPtls; n++) {
+		for (j = 0; j < FDOF * nCSpatial; j ++) {
+			rho_s_q1[n][j] = 0.;
+			rho_d_q1[n][j] = 0.;
+		}
+	}
+
 	// we assume L0=L1 = L2 
 	/* 	L[0] = snap->box.xhigh- snap->box.xlow;
 	 * 	L[1] = snap->box.yhigh- snap->box.ylow;
@@ -568,27 +601,33 @@ void EvalSpacetimeCorr(Snapshot* snap)
 					c = 2. * c0 * c1 - c2;
 					s = 2. * c0 * s1 - s2;
 				}
-				valFcol[j ++] += v[0] * c;
-				valFcol[j ++] += v[0] * s;
-				valFcol[j ++] += v[1] * c;
-				valFcol[j ++] += v[1] * s;
-				valFcol[j ++] += v[2] * c;
-				valFcol[j ++] += v[2] * s;
-				valFcol[j ++] += mu[0] * c;
-				valFcol[j ++] += mu[0] * s;
-				valFcol[j ++] += mu[1] * c;
-				valFcol[j ++] += mu[1] * s;
-				valFcol[j ++] += mu[2] * c;
-				valFcol[j ++] += mu[2] * s;
-				valFcol[j ++] += c;
-				valFcol[j ++] += s;
+				rho_s_q1[n][j ++] = v[0] * c;
+				rho_s_q1[n][j ++] = v[0] * s;
+				rho_s_q1[n][j ++] = v[1] * c;
+				rho_s_q1[n][j ++] = v[1] * s;
+				rho_s_q1[n][j ++] = v[2] * c;
+				rho_s_q1[n][j ++] = v[2] * s;
+				rho_s_q1[n][j ++] = mu[0] * c;
+				rho_s_q1[n][j ++] = mu[0] * s;
+				rho_s_q1[n][j ++] = mu[1] * c;
+				rho_s_q1[n][j ++] = mu[1] * s;
+				rho_s_q1[n][j ++] = mu[2] * c;
+				rho_s_q1[n][j ++] = mu[2] * s;
+				rho_s_q1[n][j ++] = c;
+				rho_s_q1[n][j ++] = s;
 			}
 		}
-		if (n == 0 ) {
-			for (j = 0; j < FDOF * nCSpatial; j ++) valFself[j] = valFcol[j];
-//			memcpy(valFself, valFcol,sizeof(real)*24*nCSpatial);
+		//			memcpy(rho_s_q1, rho_q1,sizeof(real)*24*nCSpatial);
+	}                                             /* for loop : n<nPtls */
+
+	for(j=0; j< FDOF * nCSpatial; j++ ) {
+		for (n=0; n<nPtls; n++) {
+			rho_q1 [ j] += rho_s_q1 [n][j];
 		}
-  }                                             /* for loop : n<nPtls */
+		for (n=0; n<nPtls; n++) {
+			rho_d_q1[n] [ j] = rho_q1[j] - rho_s_q1 [n][j];
+		}
+	}
 
 	// End Calculate Current time value
 	// Begin Two time corrlation function
@@ -603,13 +642,16 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				tBuf[nb].orgR[n].y = col_i->y;
 				tBuf[nb].orgR[n].z = col_i->z;
 			}
-//			memcpy(tBuf[nb].orgFcol ,  valFcol,sizeof(real)*24*nCSpatial);
-//			memcpy(tBuf[nb].orgFself, valFself,sizeof(real)*24*nCSpatial);
+			//			memcpy(tBuf[nb].org_rho_q1 ,  rho_q1,sizeof(real)*24*nCSpatial);
+			//			memcpy(tBuf[nb].org_rho_s_q1, rho_s_q1,sizeof(real)*24*nCSpatial);
 			for (j = 0; j < FDOF * nCSpatial; j ++){
-				tBuf[nb].orgFcol[j] = valFcol[j];
-				tBuf[nb].orgFself[j] = valFself[j];
-			}
-		}                        // End   buffer count ==0
+				tBuf[nb].org_rho_q1[j] = rho_q1[j];
+				for (n=0; n<nPtls; n++) {
+					tBuf[nb].org_rho_s_q1[n][j] = rho_s_q1[n][j];
+					tBuf[nb].org_rho_d_q1[n][j] = rho_d_q1[n][j];
+				}
+			}                        // End   buffer count ==0
+		}
 
 		if (tBuf[nb].count >= 0) {
 			/*-----------------------------------------------------------------------------
@@ -646,10 +688,11 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			/*-----------------------------------------------------------------------------
 			 *  two time correlation 
 			 *-----------------------------------------------------------------------------*/
-			//acfFcol 0 initialization
+			//F_qq2 0 initialization
 			for (j = 0; j < AVDOF * nCSpatial; j ++) {
-				tBuf[nb].acfFcol[j][ni] = 0.;
-				tBuf[nb].acfFself[j][ni] = 0.;
+				tBuf[nb].F_qq2[j][ni] = 0.;
+				tBuf[nb].F_s_qq2[j][ni] = 0.;
+				tBuf[nb].F_d_qq2[j][ni] = 0.;
 			}
 			// add AcfFcol
 
@@ -657,12 +700,12 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				for (m = 0; m < nCSpatial; m ++) {
 					const int diffMarker = m*AVDOF;
 					for (nc = 0; nc < 7; nc ++) {  
-//-----------------------------------------------------------------------------
-//   n_c = 0 1 2 vx vy vz   3 4 5 mx my mz 6 density
-//-----------------------------------------------------------------------------
-//-----------------------------------------------------------------------------
-//   n_v = 0 1  v_long v_trans    2 3 m_long m_trans 4  density
-//--------------------------------------------------------------------------
+						//-----------------------------------------------------------------------------
+						//   n_c = 0 1 2 vx vy vz   3 4 5 mx my mz 6 density
+						//-----------------------------------------------------------------------------
+						//-----------------------------------------------------------------------------
+						//   n_v = 0 1  v_long v_trans    2 3 m_long m_trans 4  density
+						//--------------------------------------------------------------------------
 						if (nc < 3) {    /*   */
 							int axis = nc;
 							if (axis == k) {
@@ -693,12 +736,19 @@ void EvalSpacetimeCorr(Snapshot* snap)
 							nv = diffMarker + AV_DEN;
 						};   // density   3*m+4
 						// cos(q*r(t)) cos(q*r(t_w) +sin sin
-						tBuf[nb].acfFself[nv][ni] +=
-							w * (valFself[j] * tBuf[nb].orgFself[j] +
-									valFself[j + 1] * tBuf[nb].orgFself[j + 1]);
-						tBuf[nb].acfFcol[nv][ni] +=
-							w * (valFcol[j] * tBuf[nb].orgFcol[j] +
-									valFcol[j + 1] * tBuf[nb].orgFcol[j + 1]);
+						for (n=0; n<nPtls; n++) {
+							tBuf[nb].F_s_qq2[nv][ni] +=
+								w * (rho_s_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
+										rho_s_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1]);
+							tBuf[nb].F_d_qq2[nv][ni] +=
+								w * (rho_d_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
+										rho_d_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1])+
+								w * (rho_s_q1[n][j] * tBuf[nb].org_rho_d_q1[n][j] +
+										rho_s_q1[n][j + 1] * tBuf[nb].org_rho_d_q1[n][j + 1]);
+						}
+						tBuf[nb].F_qq2[nv][ni] +=
+							w * (rho_q1[j] * tBuf[nb].org_rho_q1[j] +
+									rho_q1[j + 1] * tBuf[nb].org_rho_q1[j + 1]);
 						j += 2;
 					}  // for nc, total j+=8
 					assert ( j% DOF ==0);
@@ -716,245 +766,257 @@ void EvalSpacetimeCorr(Snapshot* snap)
 void AllocArray ()
 	/*!
 	 *  \brief   이름그대로 memory 할다함. 
-	 *       		대상은 valFself   self  intermediate scattering function과
-	 *     				valFcol     collective intermediate scatterring function 
+	 *     				rho_q1 functions of q      
 	 *     	등.
 	 */
 {
-	int nb;
+	int nb, natom;
 
-	AllocMem (valFself, FDOF * nCSpatial, real);
-	AllocMem (valFcol, FDOF * nCSpatial, real);
+		AllocMem (rho_s_q1, nPtls, real*);
+		AllocMem (rho_d_q1, nPtls, real*);
+		for (natom=0; natom <nPtls ; natom++) {
+			AllocMem (rho_s_q1[natom], FDOF * nCSpatial, real);
+			AllocMem (rho_d_q1[natom], FDOF * nCSpatial, real);
+		}
 
-	AllocMem2 (avAcfFself, AVDOF * nCSpatial, nCTime, real);
-	AllocMem2 (avAcfFcol,  AVDOF * nCSpatial, nCTime, real);
+		AllocMem (rho_q1, FDOF * nCSpatial, real);
 
-	AllocMem2 (valDqt,  nCSpatial, nCTime, real);
-	AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
-	AllocMem (tBuf, nCBuffer, TBuf);
-	for (nb = 0; nb < nCBuffer; nb ++) {
-		AllocMem (tBuf[nb].orgFself, FDOF * nCSpatial, real);
-		AllocMem (tBuf[nb].orgFcol, FDOF * nCSpatial, real);
+		AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
 
-		AllocMem2 (tBuf[nb].acfFself, AVDOF * nCSpatial, nCTime, real);
-		AllocMem2 (tBuf[nb].acfFcol, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (valDqt,  nCSpatial, nCTime, real);
+		AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
+		AllocMem (tBuf, nCBuffer, TBuf);
+		for (nb = 0; nb < nCBuffer; nb ++) {
+			AllocMem (tBuf[nb].org_rho_s_q1, nPtls, real*);
+			AllocMem (tBuf[nb].org_rho_d_q1, nPtls, real*);
+			for (natom=0; natom <nPtls ; natom++) {
+				AllocMem (tBuf[nb].org_rho_s_q1[natom], FDOF * nCSpatial, real);
+				AllocMem (tBuf[nb].org_rho_d_q1[natom], FDOF * nCSpatial, real);
+			}
+			AllocMem (tBuf[nb].org_rho_q1, FDOF * nCSpatial, real);
+
+			AllocMem2 (tBuf[nb].F_s_qq2, AVDOF * nCSpatial, nCTime, real);
+			AllocMem2 (tBuf[nb].F_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			AllocMem2 (tBuf[nb].F_qq2, AVDOF * nCSpatial, nCTime, real);
+		}
+		// AllocArray for Diffuse ()
+		AllocMem (rrMSDAv, nCTime, real);
+		AllocMem (rrDt, nCTime, real);
+		AllocMem (rrMQDAv, nCTime, real);
+		AllocMem2 (avDrTable, nCSpatial,nCTime, real);
+
+		fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
 	}
-	// AllocArray for Diffuse ()
-	AllocMem (rrMSDAv, nCTime, real);
-	AllocMem (rrDt, nCTime, real);
-	AllocMem (rrMQDAv, nCTime, real);
-	AllocMem2 (avDrTable, nCSpatial,nCTime, real);
-
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
-}
-void Alloc_more () {
-	/*!
-	 *  \brief  Alloc_more 
-	 *
-	 */
-	int nb,nr; real rho0, shell_Vol;
-	for (nb = 0; nb < nCBuffer; nb ++) {
-		AllocMem (tBuf[nb].orgR, nPtls, VecR3);
-		AllocMem (tBuf[nb].rrMSD, nCTime, real);
-		AllocMem (tBuf[nb].rrMQD, nCTime, real);
-		AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
-	}
-	AllocMem (factorDr, nCSpatial, real);
-
-	rho0 = nPtls/g_Vol;
-	for (nr = 0; nr < nCSpatial; nr ++) {
-		if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
-		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
-
-		factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
-		/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
-		 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
+	void Alloc_more () {
+		/*!
+		 *  \brief  Alloc_more 
+		 *
 		 */
-	}
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
-}
+		int nb,nr; real rho0, shell_Vol;
+		for (nb = 0; nb < nCBuffer; nb ++) {
+			AllocMem (tBuf[nb].orgR, nPtls, VecR3);
+			AllocMem (tBuf[nb].rrMSD, nCTime, real);
+			AllocMem (tBuf[nb].rrMQD, nCTime, real);
+			AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
+		}
+		AllocMem (factorDr, nCSpatial, real);
 
-int GetNameList (int argc, char **argv)
-	/*!
-	 *  \brief    Rapaport 책에서 가져온 코드로, 
-	 *  						Name  value 
-	 *  						Name2 value 
-	 *  				형식으로 되어 있는 초기값을 불러오는데 사용됨. 
-	 *  				지원하는 형태는 integer와 real 값을 받아다가 초기값 배정함. 
-	 *  				잘 작동함. 
-	 */
-{
-	int  j, k, match, ok;
-	char buff[100], *token;
-	FILE *fp;
-	strcpy (buff, inputFilename);
-//	strcpy (buff, argv[0]);
-//	strcat (buff, ".in");
-	if ((fp = fopen (buff, "r")) == 0)  {
-		fp = fopen(buff, "w");
+		rho0 = nPtls/g_Vol;
+		for (nr = 0; nr < nCSpatial; nr ++) {
+			if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
+			else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
+
+			factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
+			/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
+			 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
+			 */
+		}
+		fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+	}
+
+	int GetNameList (int argc, char **argv)
+		/*!
+		 *  \brief    Rapaport 책에서 가져온 코드로, 
+		 *  						Name  value 
+		 *  						Name2 value 
+		 *  				형식으로 되어 있는 초기값을 불러오는데 사용됨. 
+		 *  				지원하는 형태는 integer와 real 값을 받아다가 초기값 배정함. 
+		 *  				잘 작동함. 
+		 */
+	{
+		int  j, k, match, ok;
+		char buff[100], *token;
+		FILE *fp;
+		strcpy (buff, inputFilename);
+		//	strcpy (buff, argv[0]);
+		//	strcat (buff, ".in");
+		if ((fp = fopen (buff, "r")) == 0)  {
+			fp = fopen(buff, "w");
+			for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+				fprintf (fp, "%s\t", nameList[k].vName);
+				if (strlen (nameList[k].vName) < 8) fprintf (fp, "\t");
+				for (j = 0; j < nameList[k].vLen; j ++) {
+					switch (nameList[k].vType) {
+						case N_I:
+							fprintf (fp, "%d ", 0);
+							//						fprintf (fp, "%d ", *NP_I);
+							break;
+						case N_R:
+							fprintf (fp, "%#g ", 0.00);
+							//						fprintf (fp, "%#g ", *NP_R);
+							break;
+					}
+					fprintf (fp, "\n");
+				}
+			}
+			fprintf (fp, "----\n");
+			fclose(fp);
+			exit (1);
+		}
+
+		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++)
+			nameList[k].vStatus = 0;
+		ok = 1;
+		while (1) {
+			fgets (buff, 80, fp);
+			if (feof (fp)) break;
+			token = strtok (buff, " \t\n");
+			if (! token) break;
+			match = 0;
+			for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+				if (strcmp (token, nameList[k].vName) == 0) {
+					match = 1;
+					if (nameList[k].vStatus == 0) {
+						nameList[k].vStatus = 1;
+						for (j = 0; j < nameList[k].vLen; j ++) {
+							token = strtok (NULL, ", \t\n");
+							if (token) {
+								switch (nameList[k].vType) {
+									case N_I:
+										*NP_I = atol (token);
+										break;
+									case N_R:
+										*NP_R = atof (token);
+										break;
+								}
+							} else {
+								nameList[k].vStatus = 2;
+								ok = 0;
+							}
+						}
+						token = strtok (NULL, ", \t\n");
+						if (token) {
+							nameList[k].vStatus = 3;
+							ok = 0;
+						}
+						break;
+					} else {
+						nameList[k].vStatus = 4;
+						ok = 0;
+					}
+				}
+			}
+			if (! match) ok = 0;
+		}
+		fclose (fp);
+
+		if(nCBuffer > nCTime ) nCBuffer = nCTime;
+
+		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+			if (nameList[k].vStatus != 1) ok = 0;
+		}
+		return (ok);
+	}
+	void UpdateNameList ()
+		/*!
+		 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
+		 *
+		 *  \param  fp  FILE* file descriptor
+		 */
+	{
+		char buff[100];
+		FILE* fp;
+		strcpy (buff, inputFilename);
+		fp = fopen( buff, "w");
+		PrintNameList2File(fp);
+		fclose(fp);
+	}
+	void PrintNameList2File (FILE *fp)
+		/*!
+		 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
+		 *
+		 *  \param  fp  FILE* file descriptor
+		 */
+	{
+		int j, k;
+		fprintf (fp, "NameList -- data\n");
 		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 			fprintf (fp, "%s\t", nameList[k].vName);
 			if (strlen (nameList[k].vName) < 8) fprintf (fp, "\t");
-			for (j = 0; j < nameList[k].vLen; j ++) {
-				switch (nameList[k].vType) {
-					case N_I:
-						fprintf (fp, "%d ", 0);
-//						fprintf (fp, "%d ", *NP_I);
-						break;
-					case N_R:
-						fprintf (fp, "%#g ", 0.00);
-//						fprintf (fp, "%#g ", *NP_R);
-						break;
+			if (nameList[k].vStatus > 0) {
+				for (j = 0; j < nameList[k].vLen; j ++) {
+					switch (nameList[k].vType) {
+						case N_I:
+							fprintf (fp, "%d ", *NP_I);
+							break;
+						case N_R:
+							fprintf (fp, "%#g ", *NP_R);
+							break;
+					}
 				}
-				fprintf (fp, "\n");
 			}
+			switch (nameList[k].vStatus) {
+				case 0:
+					fprintf (fp, "** no data");
+					break;
+				case 1:
+					break;
+				case 2:
+					fprintf (fp, "** missing data");
+					break;
+				case 3:
+					fprintf (fp, "** extra data");
+					break;
+				case 4:
+					fprintf (fp, "** multiply defined");
+					break;
+			}
+			fprintf (fp, "\n");
 		}
 		fprintf (fp, "----\n");
-		fclose(fp);
-		exit (1);
 	}
 
-	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++)
-		nameList[k].vStatus = 0;
-	ok = 1;
-	while (1) {
-		fgets (buff, 80, fp);
-		if (feof (fp)) break;
-		token = strtok (buff, " \t\n");
-		if (! token) break;
-		match = 0;
-		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-			if (strcmp (token, nameList[k].vName) == 0) {
-				match = 1;
-				if (nameList[k].vStatus == 0) {
-					nameList[k].vStatus = 1;
-					for (j = 0; j < nameList[k].vLen; j ++) {
-						token = strtok (NULL, ", \t\n");
-						if (token) {
-							switch (nameList[k].vType) {
-								case N_I:
-									*NP_I = atol (token);
-									break;
-								case N_R:
-									*NP_R = atof (token);
-									break;
-							}
-						} else {
-							nameList[k].vStatus = 2;
-							ok = 0;
-						}
-					}
-					token = strtok (NULL, ", \t\n");
-					if (token) {
-						nameList[k].vStatus = 3;
-						ok = 0;
-					}
-					break;
-				} else {
-					nameList[k].vStatus = 4;
-					ok = 0;
-				}
-			}
-		}
-		if (! match) ok = 0;
+	void Init_reciprocal_space(Snapshot * snap) {
+		/*!
+		 *          
+		 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
+		 *  \param  snap Snaptshot* 스냅샷 포인터
+		 */
+		extern real kVal;
+		real new_dk;
+		int n_mul;
+		real L[3];
+		// zero initalize current time value
+		// we assume L0=L1 = L2 
+		L[0] = snap->box.xhigh- snap->box.xlow;
+		L[1] = snap->box.yhigh- snap->box.ylow;
+		L[2] = snap->box.zhigh- snap->box.zlow;
+
+		/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+		 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
+		 * 			j=0;
+		 * 			p_kVal = NP_R;
+		 * 		}
+		 * 	}
+		 * 	printf( "kVal %p kValp %p\n", &kVal, p_kVal);
+		 */
+
+		n_mul = kVal/ (2.*M_PI/ L[0] );
+		if (n_mul <=0) n_mul =1;
+		new_dk = (2.*M_PI/L[0]) * n_mul;
+		fprintf(stderr, "Update for input dk param: %f -> %f \n"
+				, kVal, new_dk);
+		kVal = new_dk;
 	}
-	fclose (fp);
-
-	if(nCBuffer > nCTime ) nCBuffer = nCTime;
-
-	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-		if (nameList[k].vStatus != 1) ok = 0;
-	}
-	return (ok);
-}
-void UpdateNameList ()
-	/*!
-	 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
-	 *
-	 *  \param  fp  FILE* file descriptor
-	 */
-{
-	char buff[100];
-	FILE* fp;
-	strcpy (buff, inputFilename);
-	fp = fopen( buff, "w");
-	PrintNameList2File(fp);
-	fclose(fp);
-}
-void PrintNameList2File (FILE *fp)
-	/*!
-	 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
-	 *
-	 *  \param  fp  FILE* file descriptor
-	 */
-{
-	int j, k;
-	fprintf (fp, "NameList -- data\n");
-	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-		fprintf (fp, "%s\t", nameList[k].vName);
-		if (strlen (nameList[k].vName) < 8) fprintf (fp, "\t");
-		if (nameList[k].vStatus > 0) {
-			for (j = 0; j < nameList[k].vLen; j ++) {
-				switch (nameList[k].vType) {
-					case N_I:
-						fprintf (fp, "%d ", *NP_I);
-						break;
-					case N_R:
-						fprintf (fp, "%#g ", *NP_R);
-						break;
-				}
-			}
-		}
-		switch (nameList[k].vStatus) {
-			case 0:
-				fprintf (fp, "** no data");
-				break;
-			case 1:
-				break;
-			case 2:
-				fprintf (fp, "** missing data");
-				break;
-			case 3:
-				fprintf (fp, "** extra data");
-				break;
-			case 4:
-				fprintf (fp, "** multiply defined");
-				break;
-		}
-		fprintf (fp, "\n");
-	}
-	fprintf (fp, "----\n");
-}
-
-void Init_reciprocal_space(Snapshot * snap) {
-	/*!
-	 *          
-	 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
-	 *  \param  snap Snaptshot* 스냅샷 포인터
-	 */
-	extern real kVal;
-	real new_dk;
-	int n_mul;
-	real L[3];
-	// zero initalize current time value
-	// we assume L0=L1 = L2 
-	L[0] = snap->box.xhigh- snap->box.xlow;
-	L[1] = snap->box.yhigh- snap->box.ylow;
-	L[2] = snap->box.zhigh- snap->box.zlow;
-
-	/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-	 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
-	 * 			j=0;
-	 * 			p_kVal = NP_R;
-	 * 		}
-	 * 	}
-	 * 	printf( "kVal %p kValp %p\n", &kVal, p_kVal);
-	 */
-
-	n_mul = kVal/ (2.*M_PI/ L[0] );
-	if (n_mul <=0) n_mul =1;
-	new_dk = (2.*M_PI/L[0]) * n_mul;
-	fprintf(stderr, "Update for input dk param: %f -> %f \n"
-			, kVal, new_dk);
-	kVal = new_dk;
-}

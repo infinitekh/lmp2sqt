@@ -40,8 +40,8 @@ typedef struct {
 	real x,y,z;
 } VecR3;
 typedef struct {
-	real **acfFcol, *orgFcol;
-	real **acfFself, *orgFself;
+	real **F_qq2, *org_rho_q1;
+	real **F_s_qq2, **F_d_qq2, **org_rho_s_q1 , **org_rho_d_q1  ;
 	VecR3 *orgR, *rTrue;
 	// VecR3 *orgVel; real *acfVel;
 	real *rrMSD;
@@ -139,8 +139,8 @@ int nPtls;
 
 
 TBuf *tBuf;
-real **avAcfFcol, *valFcol, **valDqt, **valGammaQT ;
-real **avAcfFself, *valFself;
+real **avF_qq2, *rho_q1, **valDqt, **valGammaQT ;
+real **avF_s_qq2, **avF_d_qq2, **rho_s_q1, **rho_d_q1;
 
 	real **avDrTable;
 	real *factorDr;

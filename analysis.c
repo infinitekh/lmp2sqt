@@ -52,14 +52,28 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 	bp += strlen (#x);                   \
 	x = strtod (bp, &bp);                \
 }
+#define NameVals(x,n)                     \
+if (! strncmp (bp, #x, strlen (#x))) { \
+	bp += strlen (#x);                   \
+	for (int __nnn=0; ___nnn< n ; ___nnn++ ) \
+		x[___nnn]  = strtod (bp, &bp);                \
+}
 
 #define BUFF_LEN 4096
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
 int  type[]    = { 1,   1,  1,  0 };
 int  scail[]    = { 1,   1,  1,  0 };
-char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self","self-long", "self-trans", "self"},
-//char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
+char *header[] = {"cur-long", "cur-trans", "mag-long", "mag-trans","density", "vanHove-self",
+	"self-long", "self-trans", "self",
+	"cross-long", "cross-trans", "cross"};
+int header_flag_calc[] = {0,0,1,1,1,0,1,1,1,1,1,1};
+int header_flag_more[] = {1,1,1,1,1,0,1,1,1,1,1,1};
+char *txtCorr = "space-time corr";
+/* char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self","self-long", "self-trans", "self"},
+ */
+/*  char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
 		 *txtCorr = "space-time corr";
+ */
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName,int);
 void FftComplex (Cmplx *a, int size);
@@ -68,6 +82,11 @@ real finite_diff1(real* diff, real* record, int size, real dt);
 real finite_diff2_log(real* diff2,real* diff, real* record, int size, real dt);
 real finite_diff2(real* diff2,real* diff, real* record, int size, real dt);
 
+int omegaMax,doFourier,doWindow;
+int nData,nCSpatial,nSet,nSetSkip,
+		nv, nCTime, NValDiff;
+real deltaT,deltaTCorr,kVal,kVal2;
+void Print_R2_datas ( FILE*, real*);
 
 static int verbose_flag;
 int main ( int argc, char **argv)
@@ -75,13 +94,10 @@ int main ( int argc, char **argv)
 	Cmplx *work;
 	real *corrSum[nDataTypes], *corrSumSq[nDataTypes], *corrSumErr[nDataTypes],
 	*Fqt[nDataTypes],
-	*Dqt[nDataTypes],*Hqt[nDataTypes],*corrSumD1[nDataTypes],damp, deltaT, deltaTCorr,
-	*GammaQT[nDataTypes],omegaMax, tMax, w,x,  kVal, kVal2, qVal, qVal2;
+	*Dqt[nDataTypes],*Hqt[nDataTypes],*Fqt1[nDataTypes],damp, 
+	*GammaQT[nDataTypes], tMax, w,x, qVal, qVal2;
 	real valGamma, valDq, valSq, Fq0;
-	int doFourier,doWindow;
 	int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
-	int nData,nCSpatial,nSet,nSetSkip,
-			nv, nCTime, NValDiff;
 	real fFqtUnderLimit= exp(-2.5);
 	char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 	FILE *input, *output;
@@ -93,14 +109,14 @@ int main ( int argc, char **argv)
 	 */
 
 
-	/*-----------------------------------------------------------------------------
+	/*-------------------------------------
 	 *  Argument Check!! And open a file.
-	 *-----------------------------------------------------------------------------*/
+	 *-------------------------------------*/
 	n = 1;
 	if (-- argc <1 || ! strcmp (argv[1], "-h")) PrintHelp (argv[0], __LINE__);
 	doFourier =0;
 	doWindow =0;
-	nSetSkip = 1;
+	nSetSkip = -1;
 	/* 	while (-- argc >= 0) {
 	 * 		if (! strcmp (argv[n], "-t")) doFourier =0;
 	 * 		else if (! strcmp (argv[n], "-w")) doWindow =1;
@@ -165,6 +181,21 @@ int main ( int argc, char **argv)
 	omegaMax = 10.;
 	tMax = 100.;
 
+	char inputFilename[100]= "in.lmp2sqt";
+	input = fopen( inputFilename, "r");
+	while (1) {
+		bp = fgets (buff, BUFF_LEN, input);
+		if (*bp == CHAR_MINUS) break;
+		NameVal (deltaT);
+		NameVal (nCSpatial);
+		NameVal (nCTime);
+		NameVal (kVal);
+		//		NameString (lmpFileName);
+	}
+	deltaTCorr =  deltaT;
+	kVal2 = kVal*kVal;
+	fclose(input);
+
 	if(!strcmp(fName,"-")) {
 		input = stdin;
 	} else {
@@ -181,24 +212,13 @@ int main ( int argc, char **argv)
 	//		exit (0);
 	//	}
 
-	while (1) {
-		bp = fgets (buff, BUFF_LEN, input);
-		if (*bp == CHAR_MINUS) break;
-		NameVal (deltaT);
-		NameVal (nCSpatial);
-		NameVal (nCTime);
-		NameVal (kVal);
-		//		NameString (lmpFileName);
-	}
-	deltaTCorr =  deltaT;
-	kVal2 = kVal*kVal;
 
-	/*-----------------------------------------------------------------------------
-	 *   Alloc memory and initialization
-	 *-----------------------------------------------------------------------------*/
+/*---------------------------------------------
+*   Alloc memory and initialization
+*----------------------------------------------*/
 	for (j = 0; j < nDataTypes; j ++) {
 		corrSum[j] = alloc_real(nCSpatial * nCTime);
-		corrSumD1[j] = alloc_real(nCSpatial * nCTime);
+		Fqt1[j] = alloc_real(nCSpatial * nCTime);
 		Dqt[j] = alloc_real(nCSpatial * nCTime);
 		Fqt[j] = alloc_real(nCSpatial * nCTime);
 		Hqt[j] = alloc_real(nCSpatial * nCTime);
@@ -208,13 +228,13 @@ int main ( int argc, char **argv)
 		corrSumErr[j] = alloc_real( nCSpatial * nCTime);
 		for (n =0; n < nCSpatial* nCTime; n++) {
 			corrSum [j][n] = 0;
-			corrSumD1 [j][n] = NAN;
-			Dqt [j][n] = NAN;
-			Hqt [j][n] = NAN;
-			Fqt [j][n] = NAN;
-			GammaQT [j][n] = NAN;
 			corrSumSq [j][n] = 0;
 			corrSumErr [j][n] = 0;
+			Fqt [j][n] = 0.;
+			Fqt1 [j][n] = NAN;
+			Dqt [j][n] = NAN;
+			Hqt [j][n] = NAN;
+			GammaQT [j][n] = NAN;
 		}
 	}
 
@@ -232,9 +252,20 @@ int main ( int argc, char **argv)
 			++ nData;
 			for ( j =0; j < nDataTypes; j++) {
 				bp = fgets (buff, BUFF_LEN, input); // header types check(not completed)
+				if (! strncmp (bp+2, header[j], strlen (header[j]))) {
+					
+				} else { 
+					printf("Errorororrrrrror!!!!!! File not completed!!! \n" 
+							"%s === %s\n", header[j], bp+2);
+					exit (3);
+				}
 #ifndef NDEBUG
 				printf("## header check : %s \n", buff);
 #endif
+/* 				if (! strncmp (bp, header[j], strlen (header[j]))) {
+ * 
+ * 				}
+ */
 
 				for ( n =0; n<nCTime; n ++) {
 					bp = fgets (buff, BUFF_LEN, input);
@@ -266,11 +297,13 @@ int main ( int argc, char **argv)
 	fclose (input);
 	printf ("%d\n", nData);
 
-	for ( j = 0; j < nDataTypes; j += 1 ) {
-		for ( n = 0; n < nCSpatial*nCTime; n += 1 ) {
-			corrSum[j][n] /= nData;
-			corrSumSq[j][n] = sqrt ( corrSumSq[j][n]/nData-Sqr(corrSum[j][n]));
-			corrSumErr[j][n] =  corrSumSq[j][n]/ sqrt(nData);
+	if (nData>1) {
+		for ( j = 0; j < nDataTypes; j += 1 ) {
+			for ( n = 0; n < nCSpatial*nCTime; n += 1 ) {
+				corrSum[j][n] /= nData;
+				corrSumSq[j][n] = sqrt ( corrSumSq[j][n]/nData-Sqr(corrSum[j][n]));
+				corrSumErr[j][n] =  corrSumSq[j][n]/ sqrt(nData);
+			}
 		}
 	}
 
@@ -298,10 +331,10 @@ int main ( int argc, char **argv)
 	}   //  print A(q,omega) or A(r,omega)
 	else {   // print A(q,t), or A(r,t)
 		for ( j = 0; j < nDataTypes; j += 1 ) {
-			if (scail[j] ){
-				/*-----------------------------------------------------------------------------
-				 *  D(q) ~ S(q) ~ or density and  spin longi,transverse
-				 *-----------------------------------------------------------------------------*/
+			if (header_flag_calc[j] ){
+/*-------------------------------------------------------
+*  D(q) ~ S(q) ~ or density and  spin longi,transverse
+*--------------------------------------------------------*/
 				sprintf( output_filename, "%s00.out", header[j] );
 				FILE *output = fopen( output_filename, "w");
 				fprintf(output,"#kVal Sq Gamma Dq\n"
@@ -311,9 +344,10 @@ int main ( int argc, char **argv)
 					qVal = (k+1)*kVal; qVal2=qVal*qVal;
 					Fq0 = corrSum[j] [k*nCTime];
 
-/*-----------------------------------------------------------------------------
-*      get slope on nValDiff time or where is return of function lower than 0.2
-*-----------------------------------------------------------------------------*/
+/*--------------------------------------------
+*      get slope on nValDiff time or
+*     where is return of function lower than 0.2
+*--------------------------------------------*/
 #define Xm3 ((corrSum[j][pppT]))
 #define Xm2 ((corrSum[j][ppT]))
 #define Xm1 ((corrSum[j][pT]) )
@@ -330,7 +364,7 @@ int main ( int argc, char **argv)
 #define Xlog   (log(corrSum[j][cT]) )
 					cT = k*nCTime;
 					nnT = cT+2; nT = cT+1;  //Forward Records
-					corrSumD1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					Fqt1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					GammaQT[j] [cT] =   ( (-Xlogp2+4.*Xlogp1 -3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
@@ -342,27 +376,28 @@ int main ( int argc, char **argv)
 
 //						if( corrSum[j][nnT] <0.05 ) break; // Fail to do second central derivative
 						if( corrSum[j][nT] <0.1 ) break; // Fail to do second central derivative
-						corrSumD1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
-//						corrSumD1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
+						Fqt1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
+//						Fqt1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
 						GammaQT[j] [cT] =   ( (Xlogp1 - Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
 //						GammaQT[j] [cT] =   ( (-Xlogp2+8.*Xlogp1-8.*Xlogm1+Xlogm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
 						Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 						Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 					}
-					corrSumD1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					Fqt1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
 					GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
 					ppT = cT-2; pT=cT -1;
-					corrSumD1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					Fqt1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
 					cT = cT < k*nCTime +NValDiff  ? cT: k*nCTime+NValDiff;
-					fprintf(output, "%lf %le %le %le %le %le %le \n", qVal, corrSum[j][k*nCTime], corrSumD1[j][k*nCTime], 
-							corrSum[j][cT],corrSumD1[j][cT], 
+					fprintf(output, "%lf %le %le %le %le \n", qVal, 
+//							corrSum[j][k*nCTime], Fqt1[j][k*nCTime], 
+							corrSum[j][cT],Fqt1[j][cT], 
 							GammaQT[j][cT], Dqt[j][cT]);
 
 				}
@@ -378,145 +413,139 @@ int main ( int argc, char **argv)
 					Fqt [j][k*nCTime ] = corrSum [j][k*nCTime ] ;
 					corrSum[j][k * nCTime] = 1.;
 				}
-				}
 			}
-			tMax = Min ( tMax, (nCTime -1) * deltaTCorr);
-			nv = nCTime * tMax /  (nCTime - 1) / deltaTCorr;
-			printf("nv = %d, tMax = %f, nCTime = %d, deltaTCorr = %f\n" , nv ,tMax, nCTime, deltaTCorr);
-		} // else end
+		}
+		tMax = Min ( tMax, (nCTime -1) * deltaTCorr);
+		nv = nCTime * tMax /  (nCTime - 1) / deltaTCorr;
+		printf("nv = %d, tMax = %f, nCTime = %d, deltaTCorr = %f\n" , nv ,tMax, nCTime, deltaTCorr);
+	} // else end
 
-		char fNGammaQT[100] ;
-		char fNDqt[100] ;
-		char fNHqt[100] ;
-		char fNFqt[100] ;
-		char fNFqt1[100];
+	char fNGammaQT[100] ;
+	char fNDqt[100] ;
+	char fNHqt[100] ;
+	char fNFqt[100] ;
+	char fNFqt1[100];
 
-		for ( j = 0; j < nDataTypes; j += 1 ) {
-			
-			sprintf(fNGammaQT,"GammaQT.%s.info", header[j]);
-			sprintf(fNDqt, "Dqt.%s.info", header[j]);
-			sprintf(fNHqt, "Hqt.%s.info", header[j]);
+	for ( j = 0; j < nDataTypes; j += 1 ) {
+		if ( header_flag_calc[j] ==1 ) {
 			sprintf(fNFqt, "Fqt.%s.info", header[j]);
-			sprintf(fNFqt1, "Fqt1.%s.info", header[j]);
-
-			FILE* fGammaQT = fopen(fNGammaQT, "w");
-			FILE* fDqt = fopen(fNDqt, "w");
-			FILE* fHqt = fopen(fNHqt, "w");
 			FILE* fFqt = fopen(fNFqt, "w");
-			FILE* fFqt1 = fopen(fNFqt1, "w");
-
-/* 			printf("%s\n", header[j]);
- * 			fprintf(fGammaQT,"%s\n", header[j]);
- * 			fprintf(fDqt,"%s\n", header[j]);
- * 			fprintf(fHqt,"%s\n", header[j]);
- * 			fprintf(fFqt,"%s\n", header[j]);
- * 			fprintf(fFqt1,"%s\n", header[j]);
- */
-  		fprintf(fGammaQT,"%d", nCSpatial);
-  		fprintf(fDqt,"%d", nCSpatial);
-  		fprintf(fHqt,"%d", nCSpatial);
-  		fprintf(fFqt,"%d", nCSpatial);
-  		fprintf(fFqt1,"%d", nCSpatial);
-			for ( k = 0; k < nCSpatial; k += 1 ) {
-				x= (k+1)*kVal; 
-				fprintf (fGammaQT, " %9.4e", x);
-				fprintf (fDqt, " %9.4e", x);
-				fprintf (fHqt, " %9.4e", x);
-				fprintf (fFqt, " %9.4e", x);
-				fprintf (fFqt1, " %9.4e", x);
-			}
-			fprintf (fGammaQT, "\n");
-			fprintf (fDqt, "\n");
-			fprintf (fHqt, "\n");
-			fprintf (fFqt, "\n");
-			fprintf (fFqt1, "\n");
-
-			for (n=0; n < nv; n++) {
-				if (doFourier) x = n * omegaMax / nv;
-				else x = n * deltaTCorr;
-				printf ( "%9.4e", x);
-				fprintf (fGammaQT, "%9.4e", x);
-				fprintf (fDqt, "%9.4e", x);
-				fprintf (fHqt, "%9.4e", x);
-				fprintf (fFqt, "%9.4e", x);
-				fprintf (fFqt1, "%9.4e", x);
-
-				for ( k = 0; k < nCSpatial; k += 1 ) {
-					printf (" %9.4e", corrSum[j][k * nCTime +n]);
-					fprintf (fGammaQT," %9.4e", GammaQT[j][k * nCTime +n]);
-					fprintf (fDqt," %9.4e", Dqt[j][k * nCTime +n]);
-					fprintf (fHqt," %9.4e", Hqt[j][k * nCTime +n]);
-					fprintf (fFqt," %9.4e", Fqt[j][k * nCTime +n]);
-					fprintf (fFqt1," %9.4e", corrSumD1[j][k * nCTime +n]);
-				}
-				printf ("\n");
-				fprintf ( fGammaQT,"\n");
-				fprintf (fDqt,"\n");
-				fprintf (fHqt,"\n");
-				fprintf (fFqt,"\n");
-				fprintf (fFqt1,"\n");
-			}
-			fclose(fGammaQT);
-			fclose(fDqt );
-			fclose(fHqt );
+			Print_R2_datas(fFqt,  Fqt[j]);
 			fclose(fFqt );
-			fclose(fFqt1);
-			sleep(1);
+
+/* 		corrSum[j] = alloc_real(nCSpatial * nCTime);
+ * 		Fqt1[j] = alloc_real(nCSpatial * nCTime);
+ * 		Dqt[j] = alloc_real(nCSpatial * nCTime);
+ * 		Fqt[j] = alloc_real(nCSpatial * nCTime);
+ * 		Hqt[j] = alloc_real(nCSpatial * nCTime);
+ * 		GammaQT[j] = alloc_real(nCSpatial * nCTime);
+ */
+
+			if ( header_flag_more[j] ==1 ) {
+				sprintf(fNGammaQT,"GammaQT.%s.info", header[j]);
+				FILE* fGammaQT = fopen(fNGammaQT, "w");
+				Print_R2_datas(fGammaQT, GammaQT[j]);
+				fclose(fGammaQT);
+
+				sprintf(fNDqt, "Dqt.%s.info", header[j]);
+				FILE* fDqt = fopen(fNDqt, "w");
+				Print_R2_datas(fDqt, Dqt[j]);
+				fclose(fDqt );
+
+				sprintf(fNHqt, "Hqt.%s.info", header[j]);
+				FILE* fHqt = fopen(fNHqt, "w");
+				Print_R2_datas(fHqt, Hqt[j]);
+				fclose(fHqt );
+
+				sprintf(fNFqt1, "Fqt1.%s.info", header[j]);
+				FILE* fFqt1 = fopen(fNFqt1, "w");
+				Print_R2_datas(fFqt1,  Fqt[j]);
+				fclose(fFqt1);
+			}
 		}
+
+
+	}
+}
+void Print_R2_datas ( FILE* fp, real* datas)
+{
+	real x; int nr, n ;
+	fprintf(fp,"%d", nCSpatial);
+	for (nr = 0; nr < nCSpatial; nr += 1 ) {
+		x= (nr+1)*kVal; 
+		printf("### kVal = %d * %f= %f\n", nr+1,kVal,x);
+		fprintf (fp, " %9.4e", x);
+	}
+	fprintf (fp, "\n");
+
+	for (n=0; n < nv; n++) {
+		if (doFourier) x = n * omegaMax / nv;
+		else x = n * deltaTCorr;
+		printf ( "%9.4e", x);
+		fprintf (fp, "%9.4e", x);
+
+		for ( nr = 0; nr < nCSpatial; nr += 1 ) {
+			printf (" %9.4e", datas[nr * nCTime +n]);
+			fprintf (fp," %9.4e", datas[nr * nCTime +n]);
+		}
+		fprintf (fp,"\n");
 	}
 
-	void PrintHelp ( char *pName, int linenumber)
-	{
-		printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
-				" input-file \n" 
-				"\t--time -t    : time space(default) \n"
-				"\t--fourier -f : omega space  \n"
-				"\t--window -w  : do windows \n"
-				"\t--nskip -s (with option int): Skip early data\n"
-				"\t--ndiff -d (with option int): \n"
-				"\t--help -h    : usage of this function\n"
-				"\t--verbose -v : equaivalent with help \n"
-				" if you want to use stdin, you should used -  \n"
-				"Error line number %d\n"
-				, pName, linenumber);
-		exit(0);
-	}
+}
 
-	void FftComplex (Cmplx *a, int size)
-	{
-		Cmplx t, w, wo;
-		real theta;
-		int i, j, k, n;
-		k = 0;
-		for (i = 0; i < size; i ++) {
-			if (i < k) {
-				t = a[i];
-				a[i] = a[k];
-				a[k] = t;
-			}
-			n = size / 2;
-			while (n >= 1 && k >= n) {
-				k -= n;
-				n /= 2;
-			}
-			k += n;
+
+void PrintHelp ( char *pName, int linenumber)
+{
+	printf ("Usage: %s [-t{time_corr}] [-s{skip}n] [-w{window}]"
+			" input-file \n" 
+			"\t--time -t    : time space(default) \n"
+			"\t--fourier -f : omega space  \n"
+			"\t--window -w  : do windows \n"
+			"\t--nskip -s (with option int): Skip early data\n"
+			"\t--ndiff -d (with option int): \n"
+			"\t--help -h    : usage of this function\n"
+			"\t--verbose -v : equaivalent with help \n"
+			" if you want to use stdin, you should used -  \n"
+			"Error line number %d\n"
+			, pName, linenumber);
+	exit(0);
+}
+
+void FftComplex (Cmplx *a, int size)
+{
+	Cmplx t, w, wo;
+	real theta;
+	int i, j, k, n;
+	k = 0;
+	for (i = 0; i < size; i ++) {
+		if (i < k) {
+			t = a[i];
+			a[i] = a[k];
+			a[k] = t;
 		}
-		for (n = 1; n < size; n *= 2) {
-			theta = M_PI / n;
-			CSet (wo, cos (theta) - 1., sin (theta));
-			CSet (w, 1., 0.);
-			for (k = 0; k < n; k ++) {
-				for (i = k; i < size; i += 2 * n) {
-					j = i + n;
-					CMul (t, w, a[j]);
-					CSub (a[j], a[i], t);
-					CAdd (a[i], a[i], t);
-				}
-				CMul (t, w, wo);
-				CAdd (w, w, t);
+		n = size / 2;
+		while (n >= 1 && k >= n) {
+			k -= n;
+			n /= 2;
+		}
+		k += n;
+	}
+	for (n = 1; n < size; n *= 2) {
+		theta = M_PI / n;
+		CSet (wo, cos (theta) - 1., sin (theta));
+		CSet (w, 1., 0.);
+		for (k = 0; k < n; k ++) {
+			for (i = k; i < size; i += 2 * n) {
+				j = i + n;
+				CMul (t, w, a[j]);
+				CSub (a[j], a[i], t);
+				CAdd (a[i], a[i], t);
 			}
+			CMul (t, w, wo);
+			CAdd (w, w, t);
 		}
 	}
+}
 real finite_diff1(real* diff, real* record,int size, real dt)
 { /// p previous n next
 	real fac = 1./(2.*dt); int i;
@@ -525,7 +554,7 @@ real finite_diff1(real* diff, real* record,int size, real dt)
 		diff[size-1] = fac* ( record[size-3] - 4.*record[size-2] + 3.*record[size-1]);
 	}
 	else { diff[0] = 0; diff[size-1] = 0; }
-	
+
 	for ( i = 1; i < size-1; i += 1 ){
 		diff[i] = fac* (record[i+1] - record[i-1]);
 	}
@@ -539,7 +568,7 @@ real finite_diff1_log(real* diff, real* record,int size, real dt)
 		diff[size-1] = fac* ( +LOGREC(size-3) - 4.*LOGREC(size-2) + 3.*LOGREC(size-1));
 	}
 	else { diff[0] = 0; diff[size-1] = 0; }
-	
+
 	for ( i = 1; i < size-1; i += 1 ){
 		diff[i] = fac* (LOGREC(i+1) - LOGREC(i-1));
 	}
@@ -557,7 +586,7 @@ real finite_diff2(real* diff2,real* diff, real* record,int size, real dt)
 		diff2[size-1] =fac2*(+record[size-4]-4.*record[size-3]+5.*record[size-2]-2.*record[size-1]);
 	}
 	else { diff[0] = 0; diff[size-1] = 0; }
-	
+
 	for ( i = 1; i < size-1; i += 1 ){
 		diff[i] = fac* (record[i+1] - record[i-1]);
 		diff2[i] = fac2* (record[i+1]- 2.*record[i] + record[i-1]);
@@ -576,7 +605,7 @@ real finite_diff2_log(real* diff2,real* diff, real* record,int size, real dt)
 		diff2[size-1] =fac2*(+LOGREC(size-4)-4.*LOGREC(size-3)+5.*LOGREC(size-2)-2.*LOGREC(size-1));
 	}
 	else { diff[0] = 0; diff[size-1] = 0; }
-	
+
 	for ( i = 1; i < size-1; i += 1 ){
 		diff[i] = fac* (LOGREC(i+1) - LOGREC(i-1));
 		diff2[i] = fac2* (LOGREC(i+1)- 2.*LOGREC(i) + LOGREC(i-1));
