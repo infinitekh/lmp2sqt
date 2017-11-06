@@ -240,7 +240,7 @@ void ZeroSpacetimeCorr ()
 	 *  			0값으로 초기화
 	 */
 {
-	int j, n, nr;
+	int j, n, nr,d1,d2;
 	countCorrAv = 0;
 	for (j = 0; j < AVDOF * nCSpatial; j ++) {
 		for (n = 0; n < nCTime; n ++) {
@@ -253,6 +253,7 @@ void ZeroSpacetimeCorr ()
 	for (j = 0; j < nCTime; j ++) {
 		rrMSDAv[j] = 0.;
 		rrMQDAv[j] = 0.;
+		real_tensor_zero_r2(	&rrMSR2_VR_Av [j] ) ;
 	}
 	for (j = 0; j < nCTime; j ++) 
 		for (nr = 0; nr < nCSpatial; nr ++) avDrTable[nr][j]= 0.;
@@ -306,11 +307,18 @@ void prePrintProcess ()
 	 *-----------------------------------------------------------------------------*/
 	//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
 	scale_factor = 1./ ( nPtls *  countCorrAv); 
+	real factor_dig = 1./(3.*countCorrAv * g_Vol);
+	real factor_offdig = 1./(6.*countCorrAv * g_Vol);
+
 	for (int nt = 1; nt < nCTime; nt ++) {
 		rrMSDAv[nt] *= scale_factor;
 		rrMQDAv[nt] *= scale_factor;
-		for ( int nr=0; nr<nCSpatial; nr++) 
+		rrMSR2_VR_Av_dig[nt] = real_tensor_sum_dig_r2(&rrMSR2_VR_Av[nt]);
+		rrMSR2_VR_Av_offdig[nt] = real_tensor_sum_offdig_r2(&rrMSR2_VR_Av[nt]);
+		
+		for ( int nr=0; nr<nCSpatial; nr++) {
 			avDrTable[nr][nt] *= factorDr[nr];
+		}
 	}
 }
 
@@ -533,7 +541,8 @@ void EvalSpacetimeCorr(Snapshot* snap)
 
 	real r[3], mu[3], v[3];          // L[3];
 
-	VecR3 dr;
+	VecR3 dr,vel, vecr3;
+	Rank2R3 VR, subVR,sqVR;
 	real deltaR2;
 	int i_Dr;
 
@@ -638,9 +647,14 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			 *-----------------------------------------------------------------------------*/
 			for (n=0; n<nPtls; n++) {
 				col_i = &(snap->atoms[n]);
-				tBuf[nb].orgR[n].x = col_i->x;
-				tBuf[nb].orgR[n].y = col_i->y;
-				tBuf[nb].orgR[n].z = col_i->z;
+				vecr3.x = col_i->x;
+				vecr3.y = col_i->y;
+				vecr3.z = col_i->z;
+				vel.x = col_i->vx;
+				vel.y = col_i->vy;
+				vel.z = col_i->vz;
+				real_tensor_copy_r1r1(&tBuf[nb].orgR[n], &vecr3);
+				real_tensor_product_r2_r1r1 (& tBuf[nb].orgVR[n], &vel, &vecr3);
 			}
 			//			memcpy(tBuf[nb].org_rho_q1 ,  rho_q1,sizeof(real)*24*nCSpatial);
 			//			memcpy(tBuf[nb].org_rho_s_q1, rho_s_q1,sizeof(real)*24*nCSpatial);
@@ -663,6 +677,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			 *-----------------------------------------------------------------------------*/
 			tBuf[nb].rrMSD[ni]= 0.;
 			tBuf[nb].rrMQD[ni]= 0.;
+			real_tensor_zero_r2 (&tBuf[nb].rrMSR2_VR[ni]);
 			for ( nr=0; nr<nCSpatial; nr++) 
 				tBuf[nb].DrTable[nr][ni] =0;
 
@@ -675,10 +690,25 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				dr.x =  col_i->x-tBuf[nb].orgR[n].x ;
 				dr.y =  col_i->y-tBuf[nb].orgR[n].y ;
 				dr.z =  col_i->z-tBuf[nb].orgR[n].z ;
+
+				vecr3.x = col_i->x;
+				vecr3.y = col_i->y;
+				vecr3.z = col_i->z;
+				vel.x = col_i->vx;
+				vel.y = col_i->vy;
+				vel.z = col_i->vz;
+
+				real_tensor_sub_r2_r2r2(&subVR,&VR, &tBuf[nb].orgVR[n]);
+
+				real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
+				
+
+				
 				deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
 
 				tBuf[nb].rrMSD[ni] += deltaR2;
 				tBuf[nb].rrMQD[ni] += deltaR2*deltaR2;
+				real_tensor_add_r2_r2r2(&tBuf[nb].rrMSR2_VR[ni], &tBuf[nb].rrMSR2_VR[ni], &sqVR);
 
 				i_Dr    = (int) (sqrt(deltaR2)/rVal);
 				if (i_Dr<nCSpatial)
@@ -801,10 +831,18 @@ void AllocArray ()
 			AllocMem2 (tBuf[nb].F_d_qq2, AVDOF * nCSpatial, nCTime, real);
 			AllocMem2 (tBuf[nb].F_qq2, AVDOF * nCSpatial, nCTime, real);
 		}
+		/*!
+		 *  \brief  Memory for Green-Kubo formula
+		 */
 		// AllocArray for Diffuse ()
 		AllocMem (rrMSDAv, nCTime, real);
-		AllocMem (rrDt, nCTime, real);
 		AllocMem (rrMQDAv, nCTime, real);
+		// AllocArray for shear viscosity
+		// 				 (diffusion of momentum)
+		AllocMem (rrMSR2_VR_Av, nCTime, Rank2R3);
+		AllocMem (rrMSR2_VR_Av_dig, nCTime, real);
+		AllocMem (rrMSR2_VR_Av_offdig, nCTime, real);
+		AllocMem (rrDt, nCTime, real);
 		AllocMem2 (avDrTable, nCSpatial,nCTime, real);
 
 		fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
@@ -819,6 +857,7 @@ void AllocArray ()
 			AllocMem (tBuf[nb].orgR, nPtls, VecR3);
 			AllocMem (tBuf[nb].rrMSD, nCTime, real);
 			AllocMem (tBuf[nb].rrMQD, nCTime, real);
+			AllocMem (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
 			AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
 		}
 		AllocMem (factorDr, nCSpatial, real);

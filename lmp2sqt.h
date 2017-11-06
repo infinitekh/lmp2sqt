@@ -30,20 +30,28 @@
 #include <math.h>
 #include "snapshot.h"
 /* #####   EXPORTED TYPE DEFINITIONS   ############################################## */
-typedef struct {
-	real R, I;
-} Cmplx;
+//typedef struct {
+//	real R, I;
+//} Cmplx;
 /*!
+ * move to common 
  *  \brief  struct for complex real value
  */
-typedef struct { 
-	real x,y,z;
-} VecR3;
+//typedef struct { 
+//	real xx,xy,xz;
+//	real yx,yy,yz;
+//	real zx,zy,zz;
+//} Rank2R3;
+//typedef struct { 
+//	real x,y,z;
+//} VecR3;
 typedef struct {
 	real **F_qq2, *org_rho_q1;
 	real **F_s_qq2, **F_d_qq2, **org_rho_s_q1 , **org_rho_d_q1  ;
 	VecR3 *orgR, *rTrue;
+	Rank2R3 *orgVR;
 	// VecR3 *orgVel; real *acfVel;
+	Rank2R3 *rrMSR2_VR;
 	real *rrMSD;
 	real *rrMQD;
 	int **DrTable;
@@ -142,10 +150,13 @@ TBuf *tBuf;
 real **avF_qq2, *rho_q1, **valDqt, **valGammaQT ;
 real **avF_s_qq2, **avF_d_qq2, **rho_s_q1, **rho_d_q1;
 
-	real **avDrTable;
-	real *factorDr;
+real **avDrTable;
+real *factorDr;
 int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime;
 real *rrMSDAv;
+Rank2R3 *rrMSR2_VR_Av;
+real *rrMSR2_VR_Av_offdig;
+real *rrMSR2_VR_Av_dig;
 real *rrMQDAv;
 real *rrDt;
 
