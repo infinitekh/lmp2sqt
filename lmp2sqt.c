@@ -139,6 +139,7 @@ int main(int argc, char** argv) {
 	PrintNameList2File(stdout);
 	UpdateNameList ();
 
+
 	AllocArray();
 	ZeroSpacetimeCorr ();
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
@@ -168,6 +169,7 @@ int main(int argc, char** argv) {
 		}
 		opt_num ++;
 		fclose (fp);
+		fprintf(stderr, "End : file : %s\n", filename);
 	}
 
 	if ( Number_call_Print ==0 ) {
@@ -792,7 +794,13 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	}
 	AccumSpacetimeCorr (nPtls );
 }
-
+void AllocMemCheck ()
+{
+	if (ErrorAllocMem == 1) {
+		printf("Reserving memory Error!!!!!!\n");
+		exit(1);
+	}
+}
 void AllocArray ()
 	/*!
 	 *  \brief   이름그대로 memory 할다함. 
@@ -802,260 +810,272 @@ void AllocArray ()
 {
 	int nb, natom;
 
-		AllocMem (rho_s_q1, nPtls, real*);
-		AllocMem (rho_d_q1, nPtls, real*);
-		for (natom=0; natom <nPtls ; natom++) {
-			AllocMem (rho_s_q1[natom], FDOF * nCSpatial, real);
-			AllocMem (rho_d_q1[natom], FDOF * nCSpatial, real);
-		}
 
-		AllocMem (rho_q1, FDOF * nCSpatial, real);
+	AllocMem (rho_q1, FDOF * nCSpatial, real);
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
 
-		AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
-		AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
-		AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
+	AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
+	AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
+	AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
 
-		AllocMem2 (valDqt,  nCSpatial, nCTime, real);
-		AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
-		AllocMem (tBuf, nCBuffer, TBuf);
-		for (nb = 0; nb < nCBuffer; nb ++) {
-			AllocMem (tBuf[nb].org_rho_s_q1, nPtls, real*);
-			AllocMem (tBuf[nb].org_rho_d_q1, nPtls, real*);
-			for (natom=0; natom <nPtls ; natom++) {
-				AllocMem (tBuf[nb].org_rho_s_q1[natom], FDOF * nCSpatial, real);
-				AllocMem (tBuf[nb].org_rho_d_q1[natom], FDOF * nCSpatial, real);
-			}
-			AllocMem (tBuf[nb].org_rho_q1, FDOF * nCSpatial, real);
+	AllocMem2 (valDqt,  nCSpatial, nCTime, real);
+	AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
+	AllocMem (tBuf, nCBuffer, TBuf);
+	for (nb = 0; nb < nCBuffer; nb ++) {
+		AllocMem (tBuf[nb].org_rho_q1, FDOF * nCSpatial, real);
 
-			AllocMem2 (tBuf[nb].F_s_qq2, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (tBuf[nb].F_d_qq2, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (tBuf[nb].F_qq2, AVDOF * nCSpatial, nCTime, real);
-		}
-		/*!
-		 *  \brief  Memory for Green-Kubo formula
-		 */
-		// AllocArray for Diffuse ()
-		AllocMem (rrMSDAv, nCTime, real);
-		AllocMem (rrMQDAv, nCTime, real);
-		// AllocArray for shear viscosity
-		// 				 (diffusion of momentum)
-		AllocMem (rrMSR2_VR_Av, nCTime, Rank2R3);
-		AllocMem (rrMSR2_VR_Av_dig, nCTime, real);
-		AllocMem (rrMSR2_VR_Av_offdig, nCTime, real);
-		AllocMem (rrDt, nCTime, real);
-		AllocMem2 (avDrTable, nCSpatial,nCTime, real);
-
-		fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+		AllocMem2 (tBuf[nb].F_s_qq2, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (tBuf[nb].F_d_qq2, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (tBuf[nb].F_qq2, AVDOF * nCSpatial, nCTime, real);
 	}
-	void Alloc_more () {
-		/*!
-		 *  \brief  Alloc_more 
-		 *
-		 */
-		int nb,nr; real rho0, shell_Vol;
-		for (nb = 0; nb < nCBuffer; nb ++) {
-			AllocMem (tBuf[nb].orgR, nPtls, VecR3);
-			AllocMem (tBuf[nb].rrMSD, nCTime, real);
-			AllocMem (tBuf[nb].rrMQD, nCTime, real);
-			AllocMem (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
-			AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
-		}
-		AllocMem (factorDr, nCSpatial, real);
+	/*!
+	 *  \brief  Memory for Green-Kubo formula
+	 */
+	// AllocArray for Diffuse ()
+	AllocMem (rrMSDAv, nCTime, real);
+	AllocMem (rrMQDAv, nCTime, real);
+	// AllocArray for shear viscosity
+	// 				 (diffusion of momentum)
+	AllocMem (rrMSR2_VR_Av, nCTime, Rank2R3);
+	AllocMem (rrMSR2_VR_Av_dig, nCTime, real);
+	AllocMem (rrMSR2_VR_Av_offdig, nCTime, real);
+	AllocMem (rrDt, nCTime, real);
+	AllocMem2 (avDrTable, nCSpatial,nCTime, real);
 
-		rho0 = nPtls/g_Vol;
-		for (nr = 0; nr < nCSpatial; nr ++) {
-			if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
-			else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+}
+void Alloc_more () {
+	/*!
+	 *  \brief  Alloc_more 
+	 *          Allocing   using nPtls  is post-process
+	 *
+	 */
+	int nb,nr; real rho0, shell_Vol;
 
-			factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
-			/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
-			 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
-			 */
-		}
-		fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+	AllocMem (rho_s_q1, nPtls, real*);
+	AllocMem (rho_d_q1, nPtls, real*);
+
+	for (int natom=0; natom <nPtls ; natom++) {
+		AllocMem (rho_s_q1[natom], FDOF * nCSpatial, real);
+		AllocMem (rho_d_q1[natom], FDOF * nCSpatial, real);
 	}
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+	for (nb = 0; nb < nCBuffer; nb ++) {
+		AllocMem (tBuf[nb].orgR, nPtls, VecR3);
+		AllocMem (tBuf[nb].rrMSD, nCTime, real);
+		AllocMem (tBuf[nb].rrMQD, nCTime, real);
+		AllocMem (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
+		AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
 
-	int GetNameList (int argc, char **argv)
-		/*!
-		 *  \brief    Rapaport 책에서 가져온 코드로, 
-		 *  						Name  value 
-		 *  						Name2 value 
-		 *  				형식으로 되어 있는 초기값을 불러오는데 사용됨. 
-		 *  				지원하는 형태는 integer와 real 값을 받아다가 초기값 배정함. 
-		 *  				잘 작동함. 
-		 */
-	{
-		int  j, k, match, ok;
-		char buff[100], *token;
-		FILE *fp;
-		strcpy (buff, inputFilename);
-		//	strcpy (buff, argv[0]);
-		//	strcat (buff, ".in");
-		if ((fp = fopen (buff, "r")) == 0)  {
-			fp = fopen(buff, "w");
-			for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-				fprintf (fp, "%s\t", nameList[k].vName);
-				if (strlen (nameList[k].vName) < 8) fprintf (fp, "\t");
-				for (j = 0; j < nameList[k].vLen; j ++) {
-					switch (nameList[k].vType) {
-						case N_I:
-							fprintf (fp, "%d ", 0);
-							//						fprintf (fp, "%d ", *NP_I);
-							break;
-						case N_R:
-							fprintf (fp, "%#g ", 0.00);
-							//						fprintf (fp, "%#g ", *NP_R);
-							break;
-					}
-					fprintf (fp, "\n");
-				}
-			}
-			fprintf (fp, "----\n");
-			fclose(fp);
-			exit (1);
+		AllocMem (tBuf[nb].org_rho_s_q1, nPtls, real*);
+		AllocMem (tBuf[nb].org_rho_d_q1, nPtls, real*);
+
+		for (int natom=0; natom <nPtls ; natom++) {
+			AllocMem (tBuf[nb].org_rho_s_q1[natom], FDOF * nCSpatial, real);
+			AllocMem (tBuf[nb].org_rho_d_q1[natom], FDOF * nCSpatial, real);
 		}
-
-		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++)
-			nameList[k].vStatus = 0;
-		ok = 1;
-		while (1) {
-			fgets (buff, 80, fp);
-			if (feof (fp)) break;
-			token = strtok (buff, " \t\n");
-			if (! token) break;
-			match = 0;
-			for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-				if (strcmp (token, nameList[k].vName) == 0) {
-					match = 1;
-					if (nameList[k].vStatus == 0) {
-						nameList[k].vStatus = 1;
-						for (j = 0; j < nameList[k].vLen; j ++) {
-							token = strtok (NULL, ", \t\n");
-							if (token) {
-								switch (nameList[k].vType) {
-									case N_I:
-										*NP_I = atol (token);
-										break;
-									case N_R:
-										*NP_R = atof (token);
-										break;
-								}
-							} else {
-								nameList[k].vStatus = 2;
-								ok = 0;
-							}
-						}
-						token = strtok (NULL, ", \t\n");
-						if (token) {
-							nameList[k].vStatus = 3;
-							ok = 0;
-						}
-						break;
-					} else {
-						nameList[k].vStatus = 4;
-						ok = 0;
-					}
-				}
-			}
-			if (! match) ok = 0;
-		}
-		fclose (fp);
-
-		if(nCBuffer > nCTime ) nCBuffer = nCTime;
-
-		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-			if (nameList[k].vStatus != 1) ok = 0;
-		}
-		return (ok);
 	}
-	void UpdateNameList ()
-		/*!
-		 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
-		 *
-		 *  \param  fp  FILE* file descriptor
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+	AllocMem (factorDr, nCSpatial, real);
+
+	rho0 = nPtls/g_Vol;
+	for (nr = 0; nr < nCSpatial; nr ++) {
+		if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
+		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
+		// else 부분 확실히 해야함 최근에 다룬적 있음. 
+
+		factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
+		/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
+		 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
 		 */
-	{
-		char buff[100];
-		FILE* fp;
-		strcpy (buff, inputFilename);
-		fp = fopen( buff, "w");
-		PrintNameList2File(fp);
-		fclose(fp);
 	}
-	void PrintNameList2File (FILE *fp)
-		/*!
-		 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
-		 *
-		 *  \param  fp  FILE* file descriptor
-		 */
-	{
-		int j, k;
-		fprintf (fp, "NameList -- data\n");
+	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
+}
+
+int GetNameList (int argc, char **argv)
+	/*!
+	 *  \brief    Rapaport 책에서 가져온 코드로, 
+	 *  						Name  value 
+	 *  						Name2 value 
+	 *  				형식으로 되어 있는 초기값을 불러오는데 사용됨. 
+	 *  				지원하는 형태는 integer와 real 값을 받아다가 초기값 배정함. 
+	 *  				잘 작동함. 
+	 */
+{
+	int  j, k, match, ok;
+	char buff[100], *token;
+	FILE *fp;
+	strcpy (buff, inputFilename);
+	//	strcpy (buff, argv[0]);
+	//	strcat (buff, ".in");
+	if ((fp = fopen (buff, "r")) == 0)  {
+		fp = fopen(buff, "w");
 		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 			fprintf (fp, "%s\t", nameList[k].vName);
 			if (strlen (nameList[k].vName) < 8) fprintf (fp, "\t");
-			if (nameList[k].vStatus > 0) {
-				for (j = 0; j < nameList[k].vLen; j ++) {
-					switch (nameList[k].vType) {
-						case N_I:
-							fprintf (fp, "%d ", *NP_I);
-							break;
-						case N_R:
-							fprintf (fp, "%#g ", *NP_R);
-							break;
-					}
+			for (j = 0; j < nameList[k].vLen; j ++) {
+				switch (nameList[k].vType) {
+					case N_I:
+						fprintf (fp, "%d ", 0);
+						//						fprintf (fp, "%d ", *NP_I);
+						break;
+					case N_R:
+						fprintf (fp, "%#g ", 0.00);
+						//						fprintf (fp, "%#g ", *NP_R);
+						break;
 				}
+				fprintf (fp, "\n");
 			}
-			switch (nameList[k].vStatus) {
-				case 0:
-					fprintf (fp, "** no data");
-					break;
-				case 1:
-					break;
-				case 2:
-					fprintf (fp, "** missing data");
-					break;
-				case 3:
-					fprintf (fp, "** extra data");
-					break;
-				case 4:
-					fprintf (fp, "** multiply defined");
-					break;
-			}
-			fprintf (fp, "\n");
 		}
 		fprintf (fp, "----\n");
+		fclose(fp);
+		exit (1);
 	}
 
-	void Init_reciprocal_space(Snapshot * snap) {
-		/*!
-		 *          
-		 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
-		 *  \param  snap Snaptshot* 스냅샷 포인터
-		 */
-		extern real kVal;
-		real new_dk;
-		int n_mul;
-		real L[3];
-		// zero initalize current time value
-		// we assume L0=L1 = L2 
-		L[0] = snap->box.xhigh- snap->box.xlow;
-		L[1] = snap->box.yhigh- snap->box.ylow;
-		L[2] = snap->box.zhigh- snap->box.zlow;
-
-		/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
-		 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
-		 * 			j=0;
-		 * 			p_kVal = NP_R;
-		 * 		}
-		 * 	}
-		 * 	printf( "kVal %p kValp %p\n", &kVal, p_kVal);
-		 */
-
-		n_mul = kVal/ (2.*M_PI/ L[0] );
-		if (n_mul <=0) n_mul =1;
-		new_dk = (2.*M_PI/L[0]) * n_mul;
-		fprintf(stderr, "Update for input dk param: %f -> %f \n"
-				, kVal, new_dk);
-		kVal = new_dk;
+	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++)
+		nameList[k].vStatus = 0;
+	ok = 1;
+	while (1) {
+		fgets (buff, 80, fp);
+		if (feof (fp)) break;
+		token = strtok (buff, " \t\n");
+		if (! token) break;
+		match = 0;
+		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+			if (strcmp (token, nameList[k].vName) == 0) {
+				match = 1;
+				if (nameList[k].vStatus == 0) {
+					nameList[k].vStatus = 1;
+					for (j = 0; j < nameList[k].vLen; j ++) {
+						token = strtok (NULL, ", \t\n");
+						if (token) {
+							switch (nameList[k].vType) {
+								case N_I:
+									*NP_I = atol (token);
+									break;
+								case N_R:
+									*NP_R = atof (token);
+									break;
+							}
+						} else {
+							nameList[k].vStatus = 2;
+							ok = 0;
+						}
+					}
+					token = strtok (NULL, ", \t\n");
+					if (token) {
+						nameList[k].vStatus = 3;
+						ok = 0;
+					}
+					break;
+				} else {
+					nameList[k].vStatus = 4;
+					ok = 0;
+				}
+			}
+		}
+		if (! match) ok = 0;
 	}
+	fclose (fp);
+
+	if(nCBuffer > nCTime ) nCBuffer = nCTime;
+
+	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+		if (nameList[k].vStatus != 1) ok = 0;
+	}
+	return (ok);
+}
+void UpdateNameList ()
+	/*!
+	 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
+	 *
+	 *  \param  fp  FILE* file descriptor
+	 */
+{
+	char buff[100];
+	FILE* fp;
+	strcpy (buff, inputFilename);
+	fp = fopen( buff, "w");
+	PrintNameList2File(fp);
+	fclose(fp);
+}
+void PrintNameList2File (FILE *fp)
+	/*!
+	 *  \brief 초기값을 출력하는 함수 getNameList의 짝함수이다.   
+	 *
+	 *  \param  fp  FILE* file descriptor
+	 */
+{
+	int j, k;
+	fprintf (fp, "NameList -- data\n");
+	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+		fprintf (fp, "%s\t", nameList[k].vName);
+		if (strlen (nameList[k].vName) < 8) fprintf (fp, "\t");
+		if (nameList[k].vStatus > 0) {
+			for (j = 0; j < nameList[k].vLen; j ++) {
+				switch (nameList[k].vType) {
+					case N_I:
+						fprintf (fp, "%d ", *NP_I);
+						break;
+					case N_R:
+						fprintf (fp, "%#g ", *NP_R);
+						break;
+				}
+			}
+		}
+		switch (nameList[k].vStatus) {
+			case 0:
+				fprintf (fp, "** no data");
+				break;
+			case 1:
+				break;
+			case 2:
+				fprintf (fp, "** missing data");
+				break;
+			case 3:
+				fprintf (fp, "** extra data");
+				break;
+			case 4:
+				fprintf (fp, "** multiply defined");
+				break;
+		}
+		fprintf (fp, "\n");
+	}
+	fprintf (fp, "----\n");
+}
+
+void Init_reciprocal_space(Snapshot * snap) {
+	/*!
+	 *          
+	 *  고로 원래 목적과 달리 delta_k를 2pi/L * n(정수)로 맞추도록 한다.
+	 *  \param  snap Snaptshot* 스냅샷 포인터
+	 */
+	extern real kVal;
+	real new_dk;
+	int n_mul;
+	real L[3];
+	// zero initalize current time value
+	// we assume L0=L1 = L2 
+	L[0] = snap->box.xhigh- snap->box.xlow;
+	L[1] = snap->box.yhigh- snap->box.ylow;
+	L[2] = snap->box.zhigh- snap->box.zlow;
+
+	/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+	 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
+	 * 			j=0;
+	 * 			p_kVal = NP_R;
+	 * 		}
+	 * 	}
+	 * 	printf( "kVal %p kValp %p\n", &kVal, p_kVal);
+	 */
+
+	n_mul = kVal/ (2.*M_PI/ L[0] );
+	if (n_mul <=0) n_mul =1;
+	new_dk = (2.*M_PI/L[0]) * n_mul;
+	fprintf(stderr, "Update for input dk param: %f -> %f \n"
+			, kVal, new_dk);
+	kVal = new_dk;
+}

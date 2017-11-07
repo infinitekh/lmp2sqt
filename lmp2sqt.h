@@ -109,9 +109,11 @@ enum  { DEN=6, V_X=0,V_Y=1,V_Z=2, M_X=3,M_Y=4,M_Z=5,
 void* unused_pointer;
 int ununused_value;
 long long ll_mem_size=0;
+int ErrorAllocMem=0; 
 #define AllocMem(a, n, t)                       \
 	a = (t *) malloc ((n) * sizeof (t));      \
-  ll_mem_size += n* sizeof(t);
+	if (a == NULL ) ErrorAllocMem=1;          \
+  ll_mem_size += (long long)n* sizeof(t);
 #define AllocMem2(a, n1, n2, t)                        \
 	AllocMem (a, n1, t *);                               \
 AllocMem (a[0], (n1) * (n2), t);                     \
