@@ -37,6 +37,7 @@ typedef struct {
 } VecR3;
 
 void real_tensor_copy_r1r1(VecR3*,VecR3*);
+void real_tensor_copy_r2r2(Rank2R3*,Rank2R3*);
 void real_tensor_product_r2_r1r1( Rank2R3* ,
 		VecR3 *r1a, VecR3* ) ;
 void real_tensor_product_r2_r2r2( Rank2R3* ,

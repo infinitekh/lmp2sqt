@@ -33,6 +33,7 @@
 
 
 #define DIM 3
+#define flagSelf 0
 
 typedef enum {N_I, N_R} VType;
 typedef struct {
@@ -196,17 +197,21 @@ void AccumSpacetimeCorr ()
 		if (tBuf[nb].count == nCTime) {
 			// S(q,t), M(q,t) part
 			for (j = 0; j < AVDOF * nCSpatial; j ++) {
-				for (n = 0; n < nCTime; n ++)
+				for (n = 0; n < nCTime; n ++){
 					avF_qq2[j][n] += tBuf[nb].F_qq2[j][n];
-				avF_s_qq2[j][n] += tBuf[nb].F_s_qq2[j][n];
-				avF_d_qq2[j][n] += tBuf[nb].F_d_qq2[j][n];
+					avF_s_qq2[j][n] += tBuf[nb].F_s_qq2[j][n];
+					avF_d_qq2[j][n] += tBuf[nb].F_d_qq2[j][n];
+				}
 			}
 			// Diffuse Part
 			for (j = 0; j < nCTime; j ++) {
 				rrMSDAv[j] += tBuf[nb].rrMSD[j];
 				rrMQDAv[j] += tBuf[nb].rrMQD[j];
-				for ( nr=0; nr<nCSpatial; nr++) 
+			  real_tensor_add_r2_r2r2(&rrMSR2_VR_Av[j], 
+						&rrMSR2_VR_Av[j], &tBuf[nb].rrMSR2_VR[j]);
+				for ( nr=0; nr<nCSpatial; nr++) {
 					avDrTable[nr][j] += tBuf[nb].DrTable[nr][j];
+				}
 			}
 			// buffer nb reset
 			tBuf[nb].count = 0;
@@ -315,9 +320,11 @@ void prePrintProcess ()
 	for (int nt = 1; nt < nCTime; nt ++) {
 		rrMSDAv[nt] *= scale_factor;
 		rrMQDAv[nt] *= scale_factor;
-		rrMSR2_VR_Av_dig[nt] = real_tensor_sum_dig_r2(&rrMSR2_VR_Av[nt]);
-		rrMSR2_VR_Av_offdig[nt] = real_tensor_sum_offdig_r2(&rrMSR2_VR_Av[nt]);
-		
+		rrMSR2_VR_Av_dig[nt] = 
+			factor_dig*	real_tensor_sum_dig_r2(&rrMSR2_VR_Av[nt]);
+		rrMSR2_VR_Av_offdig[nt] = 
+			factor_offdig*  real_tensor_sum_offdig_r2(&rrMSR2_VR_Av[nt]);
+
 		for ( int nr=0; nr<nCSpatial; nr++) {
 			avDrTable[nr][nt] *= factorDr[nr];
 		}
@@ -482,7 +489,7 @@ void PrintEtc () {
 
 
 	FILE* fp_Dt = fopen(filename1,"w");
-	fprintf (fp_Dt, "#time MSD diffusion\n");
+	fprintf (fp_Dt, "#time MSD diffusion MeanQuad-Disp MSVR_dig MSVR_offdig\n");
 
 	real fac = 1./( 2.* deltaT * DIM * 2);
 	int nr=0;
@@ -496,7 +503,9 @@ void PrintEtc () {
 
 	for ( int  nt = 0; nt < nCTime; nt += 1 ) {
 		real tVal = nt * deltaT;
-		fprintf (fp_Dt, "%8.4f %8.4e %8.4e %8.4e\n", tVal, rrMSDAv[nt] , rrDt[nt], rrMQDAv[nt]); 
+		fprintf (fp_Dt, "%8.4f %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e\n", 
+				tVal, rrMSDAv[nt] , rrDt[nt], rrMQDAv[nt],
+				rrMSR2_VR_Av_dig[nt], rrMSR2_VR_Av_offdig[nt], rrMSR2_VR_Av[nt].xy); 
 	}
 	fclose(fp_Dt); 
 
@@ -543,10 +552,6 @@ void EvalSpacetimeCorr(Snapshot* snap)
 
 	real r[3], mu[3], v[3];          // L[3];
 
-	VecR3 dr,vel, vecr3;
-	Rank2R3 VR, subVR,sqVR;
-	real deltaR2;
-	int i_Dr;
 
 	L = snap->box.xhigh- snap->box.xlow;
 	g_Vol  = L*L*L;
@@ -557,15 +562,16 @@ void EvalSpacetimeCorr(Snapshot* snap)
 		first_run++;
 	}
 
-	atom* col_i;
 	// zero initalize current time value
 	for (j = 0; j < FDOF * nCSpatial; j ++) {
 		rho_q1[j] = 0.;
 	}
-	for (n=0; n<nPtls; n++) {
-		for (j = 0; j < FDOF * nCSpatial; j ++) {
-			rho_s_q1[n][j] = 0.;
-			rho_d_q1[n][j] = 0.;
+	if ( flagSelf ) {
+		for (n=0; n<nPtls; n++) {
+			for (j = 0; j < FDOF * nCSpatial; j ++) {
+				rho_s_q1[n][j] = 0.;
+				rho_d_q1[n][j] = 0.;
+			}
 		}
 	}
 
@@ -582,6 +588,7 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	 *  Direct calculate  rho(q)
 	 *-----------------------------------------------------------------------------*/
 	for (n=0; n<nPtls; n++) {
+		atom* col_i;
 		col_i = &(snap->atoms[n]);
 		/* 		r[0] = col_i->x; r[0] = r[0] - L* floor(r[0]/L)- L/2.;  
 		 * 		r[1] = col_i->y; r[1] = r[1] - L* floor(r[1]/L)- L/2.;  
@@ -612,31 +619,36 @@ void EvalSpacetimeCorr(Snapshot* snap)
 					c = 2. * c0 * c1 - c2;
 					s = 2. * c0 * s1 - s2;
 				}
-				rho_s_q1[n][j ++] = v[0] * c;
-				rho_s_q1[n][j ++] = v[0] * s;
-				rho_s_q1[n][j ++] = v[1] * c;
-				rho_s_q1[n][j ++] = v[1] * s;
-				rho_s_q1[n][j ++] = v[2] * c;
-				rho_s_q1[n][j ++] = v[2] * s;
-				rho_s_q1[n][j ++] = mu[0] * c;
-				rho_s_q1[n][j ++] = mu[0] * s;
-				rho_s_q1[n][j ++] = mu[1] * c;
-				rho_s_q1[n][j ++] = mu[1] * s;
-				rho_s_q1[n][j ++] = mu[2] * c;
-				rho_s_q1[n][j ++] = mu[2] * s;
-				rho_s_q1[n][j ++] = c;
-				rho_s_q1[n][j ++] = s;
+				rho_s_q1_temp[j ++] = v[0] * c;
+				rho_s_q1_temp[j ++] = v[0] * s;
+				rho_s_q1_temp[j ++] = v[1] * c;
+				rho_s_q1_temp[j ++] = v[1] * s;
+				rho_s_q1_temp[j ++] = v[2] * c;
+				rho_s_q1_temp[j ++] = v[2] * s;
+				rho_s_q1_temp[j ++] = mu[0] * c;
+				rho_s_q1_temp[j ++] = mu[0] * s;
+				rho_s_q1_temp[j ++] = mu[1] * c;
+				rho_s_q1_temp[j ++] = mu[1] * s;
+				rho_s_q1_temp[j ++] = mu[2] * c;
+				rho_s_q1_temp[j ++] = mu[2] * s;
+				rho_s_q1_temp[j ++] = c;
+				rho_s_q1_temp[j ++] = s;
 			}
 		}
 		//			memcpy(rho_s_q1, rho_q1,sizeof(real)*24*nCSpatial);
-	}                                             /* for loop : n<nPtls */
-
-	for(j=0; j< FDOF * nCSpatial; j++ ) {
-		for (n=0; n<nPtls; n++) {
-			rho_q1 [ j] += rho_s_q1 [n][j];
+		for(j=0; j< FDOF * nCSpatial; j++ ) {
+			rho_q1 [ j] += rho_s_q1_temp[j];
 		}
-		for (n=0; n<nPtls; n++) {
-			rho_d_q1[n] [ j] = rho_q1[j] - rho_s_q1 [n][j];
+		if ( flagSelf ) {
+			memcpy(rho_s_q1[n], rho_s_q1_temp, sizeof(real)*FDOF*nCSpatial);
+		}
+	} /* for loop : n<nPtls */
+
+	if ( flagSelf ) {
+		for(j=0; j< FDOF * nCSpatial; j++ ) {
+			for (n=0; n<nPtls; n++) {
+				rho_d_q1[n] [ j] = rho_q1[j] - rho_s_q1 [n][j];
+			}
 		}
 	}
 
@@ -647,7 +659,11 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			/*-----------------------------------------------------------------------------
 			 *   t_w information 
 			 *-----------------------------------------------------------------------------*/
-			for (n=0; n<nPtls; n++) {
+			real_tensor_zero_r2(&tBuf[nb].orgSumVR);
+			for (int n=0; n<nPtls; n++) {
+				VecR3  vecr3,vel;
+				Rank2R3 VR;
+				atom* col_i;
 				col_i = &(snap->atoms[n]);
 				vecr3.x = col_i->x;
 				vecr3.y = col_i->y;
@@ -655,19 +671,25 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				vel.x = col_i->vx;
 				vel.y = col_i->vy;
 				vel.z = col_i->vz;
+
 				real_tensor_copy_r1r1(&tBuf[nb].orgR[n], &vecr3);
-				real_tensor_product_r2_r1r1 (& tBuf[nb].orgVR[n], &vel, &vecr3);
+				real_tensor_product_r2_r1r1 (&VR, &vel, &vecr3);
+				real_tensor_add_r2_r2r2(&tBuf[nb].orgSumVR, &tBuf[nb].orgSumVR,&VR);
 			}
+
 			//			memcpy(tBuf[nb].org_rho_q1 ,  rho_q1,sizeof(real)*24*nCSpatial);
 			//			memcpy(tBuf[nb].org_rho_s_q1, rho_s_q1,sizeof(real)*24*nCSpatial);
 			for (j = 0; j < FDOF * nCSpatial; j ++){
 				tBuf[nb].org_rho_q1[j] = rho_q1[j];
-				for (n=0; n<nPtls; n++) {
-					tBuf[nb].org_rho_s_q1[n][j] = rho_s_q1[n][j];
-					tBuf[nb].org_rho_d_q1[n][j] = rho_d_q1[n][j];
-				}
-			}                        // End   buffer count ==0
-		}
+				if ( flagSelf ) {
+					for (n=0; n<nPtls; n++) {
+						tBuf[nb].org_rho_s_q1[n][j] = rho_s_q1[n][j];
+						tBuf[nb].org_rho_d_q1[n][j] = rho_d_q1[n][j];
+					}  // for n
+				} // if flagSelf
+			}   // for j
+		}     // End   buffer count ==0
+
 
 		if (tBuf[nb].count >= 0) {
 			/*-----------------------------------------------------------------------------
@@ -680,14 +702,20 @@ void EvalSpacetimeCorr(Snapshot* snap)
 			tBuf[nb].rrMSD[ni]= 0.;
 			tBuf[nb].rrMQD[ni]= 0.;
 			real_tensor_zero_r2 (&tBuf[nb].rrMSR2_VR[ni]);
-			for ( nr=0; nr<nCSpatial; nr++) 
+			for ( nr=0; nr<nCSpatial; nr++) {
 				tBuf[nb].DrTable[nr][ni] =0;
+			}
 
 			/*-----------------------------------------------------------------------------
 			 *  Calculation at this time
 			 *-----------------------------------------------------------------------------*/
+			Rank2R3 VR, sumVR,subVR,sqVR;
+			real_tensor_zero_r2(&sumVR);
 
-			for (n=0; n<nPtls; n++) {
+			for (int n=0; n<nPtls; n++) {
+				VecR3 dr, vecr3,vel;
+				atom* col_i;
+
 				col_i = &(snap->atoms[n]);
 				dr.x =  col_i->x-tBuf[nb].orgR[n].x ;
 				dr.y =  col_i->y-tBuf[nb].orgR[n].y ;
@@ -700,22 +728,22 @@ void EvalSpacetimeCorr(Snapshot* snap)
 				vel.y = col_i->vy;
 				vel.z = col_i->vz;
 
-				real_tensor_sub_r2_r2r2(&subVR,&VR, &tBuf[nb].orgVR[n]);
+				real deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
 
-				real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
-				
+				int  i_Dr    = (int) (sqrt(deltaR2)/rVal);
+				if (i_Dr<nCSpatial) tBuf[nb].DrTable[i_Dr][ni] ++;
 
-				
-				deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
+				real_tensor_product_r2_r1r1 (& VR, &vel, &vecr3);
+				real_tensor_add_r2_r2r2(&sumVR,&sumVR, &VR);
 
 				tBuf[nb].rrMSD[ni] += deltaR2;
 				tBuf[nb].rrMQD[ni] += deltaR2*deltaR2;
-				real_tensor_add_r2_r2r2(&tBuf[nb].rrMSR2_VR[ni], &tBuf[nb].rrMSR2_VR[ni], &sqVR);
-
-				i_Dr    = (int) (sqrt(deltaR2)/rVal);
-				if (i_Dr<nCSpatial)
-					tBuf[nb].DrTable[i_Dr][ni] ++;
 			}
+
+			real_tensor_sub_r2_r2r2(&subVR, &sumVR, &tBuf[nb].orgSumVR);
+			real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
+
+			real_tensor_add_r2_r2r2(&tBuf[nb].rrMSR2_VR[ni], &tBuf[nb].rrMSR2_VR[ni], &sqVR);
 
 			/*-----------------------------------------------------------------------------
 			 *  two time correlation 
@@ -768,16 +796,19 @@ void EvalSpacetimeCorr(Snapshot* snap)
 							nv = diffMarker + AV_DEN;
 						};   // density   3*m+4
 						// cos(q*r(t)) cos(q*r(t_w) +sin sin
-						for (n=0; n<nPtls; n++) {
-							tBuf[nb].F_s_qq2[nv][ni] +=
-								w * (rho_s_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
-										rho_s_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1]);
-							tBuf[nb].F_d_qq2[nv][ni] +=
-								w * (rho_d_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
-										rho_d_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1])+
-								w * (rho_s_q1[n][j] * tBuf[nb].org_rho_d_q1[n][j] +
-										rho_s_q1[n][j + 1] * tBuf[nb].org_rho_d_q1[n][j + 1]);
+						if (flagSelf ) {
+							for (n=0; n<nPtls; n++) {
+								tBuf[nb].F_s_qq2[nv][ni] +=
+									w * (rho_s_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
+											rho_s_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1]);
+								tBuf[nb].F_d_qq2[nv][ni] +=
+									w * (rho_d_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
+											rho_d_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1])+
+									w * (rho_s_q1[n][j] * tBuf[nb].org_rho_d_q1[n][j] +
+											rho_s_q1[n][j + 1] * tBuf[nb].org_rho_d_q1[n][j + 1]);
+							}
 						}
+
 						tBuf[nb].F_qq2[nv][ni] +=
 							w * (rho_q1[j] * tBuf[nb].org_rho_q1[j] +
 									rho_q1[j + 1] * tBuf[nb].org_rho_q1[j + 1]);
@@ -812,14 +843,10 @@ void AllocArray ()
 
 
 	AllocMem (rho_q1, FDOF * nCSpatial, real);
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
 
 	AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
 	AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
 	AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d kb\n", (int) ll_mem_size/1000);
 
 	AllocMem2 (valDqt,  nCSpatial, nCTime, real);
 	AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
@@ -854,15 +881,18 @@ void Alloc_more () {
 	 *
 	 */
 	int nb,nr; real rho0, shell_Vol;
+	AllocMem (rho_s_q1_temp, FDOF * nCSpatial, real);
 
-	AllocMem (rho_s_q1, nPtls, real*);
-	AllocMem (rho_d_q1, nPtls, real*);
+	if (flagSelf ) {
+		AllocMem (rho_s_q1, nPtls, real*);
+		AllocMem (rho_d_q1, nPtls, real*);
 
-	for (int natom=0; natom <nPtls ; natom++) {
-		AllocMem (rho_s_q1[natom], FDOF * nCSpatial, real);
-		AllocMem (rho_d_q1[natom], FDOF * nCSpatial, real);
+		for (int natom=0; natom <nPtls ; natom++) {
+			AllocMem (rho_s_q1[natom], FDOF * nCSpatial, real);
+			AllocMem (rho_d_q1[natom], FDOF * nCSpatial, real);
+		}
+		fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
 	}
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		AllocMem (tBuf[nb].orgR, nPtls, VecR3);
 		AllocMem (tBuf[nb].rrMSD, nCTime, real);
@@ -870,12 +900,14 @@ void Alloc_more () {
 		AllocMem (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
 		AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
 
-		AllocMem (tBuf[nb].org_rho_s_q1, nPtls, real*);
-		AllocMem (tBuf[nb].org_rho_d_q1, nPtls, real*);
+		if (flagSelf) {
+			AllocMem (tBuf[nb].org_rho_s_q1, nPtls, real*);
+			AllocMem (tBuf[nb].org_rho_d_q1, nPtls, real*);
 
-		for (int natom=0; natom <nPtls ; natom++) {
-			AllocMem (tBuf[nb].org_rho_s_q1[natom], FDOF * nCSpatial, real);
-			AllocMem (tBuf[nb].org_rho_d_q1[natom], FDOF * nCSpatial, real);
+			for (int natom=0; natom <nPtls ; natom++) {
+				AllocMem (tBuf[nb].org_rho_s_q1[natom], FDOF * nCSpatial, real);
+				AllocMem (tBuf[nb].org_rho_d_q1[natom], FDOF * nCSpatial, real);
+			}
 		}
 	}
 	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);

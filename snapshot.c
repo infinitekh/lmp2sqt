@@ -256,6 +256,7 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 	read_lines(1,fp);
 
 	if( strncmp(s_atoms_dipole,line,i_atoms_dipole) ==0) {
+		fprintf(stderr,"s_atoms_dipole style snapshot\n");
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
 			id =atoi(strtok(line, delimeter));
@@ -272,6 +273,7 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 		}
 	}
 	else if (strncmp(s_atoms_vel,line,i_atoms_vel) ==0 ) {
+		fprintf(stderr,"s_atoms_vel style snapshot\n");
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
 			id =atoi(strtok(line, delimeter));
@@ -293,6 +295,7 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 
 	}
 	else if (strncmp(s_atoms_all,line,i_atoms_all) ==0 ) {
+		fprintf(stderr,"s_atoms_all style snapshot\n");
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
 			id =atoi(strtok(line, delimeter));
@@ -309,6 +312,28 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 
 			p_atom = &(snap->atoms[i]);
 			make_atom_all( p_atom,id,type,xu,yu,zu,mux,muy,muz,vx,vy,vz);
+		}
+
+	}
+	else if (strncmp(s_atoms_vel,line,i_atoms_vel) ==0 ) {
+		fprintf(stderr,"s_atoms_vel style snapshot\n");
+		for (i=0; i<n_atoms; i++){
+			read_lines(1,fp);
+			id =atoi(strtok(line, delimeter));
+			type = atoi(strtok(NULL,delimeter));
+			xu   = atof(strtok(NULL,delimeter));
+			yu   = atof(strtok(NULL,delimeter));
+			zu   = atof(strtok(NULL,delimeter));
+			vx   = atof(strtok(NULL,delimeter));
+			vy   = atof(strtok(NULL,delimeter));
+			vz   = atof(strtok(NULL,delimeter));
+
+			p_atom = &(snap->atoms[i]);
+			make_atom_vel( p_atom,id,type,xu,yu,zu,vx,vy,vz);
+			/*	fprintf(stderr,"%d %d %f %f %f %f %f %f\n", 
+					id,type,
+					xu,yu,zu,
+					mux,muy,muz);*/
 		}
 
 	}

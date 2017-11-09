@@ -41,6 +41,17 @@ void real_tensor_copy_r1r1(VecR3*  lvalue,VecR3* rvalue) {
 	lvalue->y = rvalue->y;
 	lvalue->z = rvalue->z;
 }
+void real_tensor_copy_r2r2(Rank2R3*  lvalue,Rank2R3* rvalue) {
+	lvalue->xx = rvalue->xx;
+	lvalue->xy = rvalue->xy;
+	lvalue->xz = rvalue->xz;
+	lvalue->yx = rvalue->yx;
+	lvalue->yy = rvalue->yy;
+	lvalue->yz = rvalue->yz;
+	lvalue->zx = rvalue->zx;
+	lvalue->zy = rvalue->zy;
+	lvalue->zz = rvalue->zz;
+}
 void real_tensor_product_r2_r1r1( Rank2R3* r2,
 		VecR3 *r1a, VecR3* r1b) {
 	r2->xx = r1a->x * r1b->x;
@@ -119,11 +130,10 @@ void real_tensor_zero_r2( Rank2R3* r2) {
 	r2->zz = 0.;
 }
 real real_tensor_sum_offdig_r2( Rank2R3* r2) {
-	return r2->xy+r2->yz+r2->xz 
-		+    r2->yx+r2->zy+r2->zx;
+	return r2->xy +r2->yz + r2->zx +    r2->yx + r2->zy + r2->zx;
 }
 real real_tensor_sum_dig_r2( Rank2R3* r2) {
-	return r2->xx+r2->yy+r2->zz;
+	return r2->xx + r2->yy + r2->zz;
 }
 void real_tensor_zero_r1( VecR3* r1) {
 	r1->x =0.;
