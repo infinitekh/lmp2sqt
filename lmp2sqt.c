@@ -65,9 +65,16 @@ typedef struct {
 
 
 NameList nameList[] = {
-	NameR   (rVal),
+	/*!
+	 *  \brief  system information 
+	 */
 	NameR   (kVal),
 	NameR   (deltaT),
+	NameR   (mass),
+	/*!
+	 *  \brief input parameter for evaluation 
+	 */
+	NameR   (rVal),
 	NameI  	(limitCorrAv),
 	NameI   (nCBuffer),       // number of simul. time seq
 	NameI   (nCSpatial),        // number of spatial seq
@@ -195,6 +202,7 @@ void AccumSpacetimeCorr ()
 	int j,  nb, nr, n;
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		if (tBuf[nb].count == nCTime) {
+			// check!! that  data is full
 			// S(q,t), M(q,t) part
 			for (j = 0; j < AVDOF * nCSpatial; j ++) {
 				for (n = 0; n < nCTime; n ++){
@@ -228,17 +236,16 @@ void InitSpacetimeCorr ()
 	 *  \brief  프로그램 초기에 시간 평균을 낼 수 있도록 index를 부여하는 과정
 	 */
 {
-	int nb;
 	if (nCBuffer > nCTime) {
-		fputs("Error nCBuffer> nCTime", stderr);
+		fputs("Error nCBuffer> nCTime\n", stderr);
 		exit(1);
 	}
 
-	for (nb = 0; nb < nCBuffer; nb ++){
+	for (int nb = 0; nb < nCBuffer; nb ++){
 		tBuf[nb].count = - nb * nCTime / nCBuffer;
 		tBuf[nb].countDiff = - nb * nCTime / nCBuffer;
 	}
-	//	ZeroSpacetimeCorr ();
+	ZeroSpacetimeCorr ();
 }
 
 void ZeroSpacetimeCorr ()
@@ -261,6 +268,8 @@ void ZeroSpacetimeCorr ()
 		rrMSDAv[j] = 0.;
 		rrMQDAv[j] = 0.;
 		real_tensor_zero_r2(	&rrMSR2_VR_Av [j] ) ;
+		rrMSR2_VR_Av_offdig[j] = 0.;
+		rrMSR2_VR_Av_dig [j]   = 0.;
 	}
 	for (j = 0; j < nCTime; j ++) 
 		for (nr = 0; nr < nCSpatial; nr ++) avDrTable[nr][j]= 0.;
@@ -320,6 +329,12 @@ void prePrintProcess ()
 	for (int nt = 1; nt < nCTime; nt ++) {
 		rrMSDAv[nt] *= scale_factor;
 		rrMQDAv[nt] *= scale_factor;
+		
+		/*!
+		 *  \brief  if all mass is same value
+		 */
+		real_tensor_product_r2_r0r2(&rrMSR2_VR_Av[nt]
+				, (.5*mass*mass),&rrMSR2_VR_Av[nt]);
 		rrMSR2_VR_Av_dig[nt] = 
 			factor_dig*	real_tensor_sum_dig_r2(&rrMSR2_VR_Av[nt]);
 		rrMSR2_VR_Av_offdig[nt] = 
@@ -503,9 +518,16 @@ void PrintEtc () {
 
 	for ( int  nt = 0; nt < nCTime; nt += 1 ) {
 		real tVal = nt * deltaT;
-		fprintf (fp_Dt, "%8.4f %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e\n", 
+		fprintf (fp_Dt, "%8.4f %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e %8.4e \n", 
 				tVal, rrMSDAv[nt] , rrDt[nt], rrMQDAv[nt],
-				rrMSR2_VR_Av_dig[nt], rrMSR2_VR_Av_offdig[nt], rrMSR2_VR_Av[nt].xy); 
+				rrMSR2_VR_Av_dig[nt], rrMSR2_VR_Av_offdig[nt]
+				, rrMSR2_VR_Av[nt].xy
+				, rrMSR2_VR_Av[nt].yx
+				, rrMSR2_VR_Av[nt].zy
+				, rrMSR2_VR_Av[nt].yz
+				, rrMSR2_VR_Av[nt].xz
+				, rrMSR2_VR_Av[nt].zx
+				); 
 	}
 	fclose(fp_Dt); 
 
@@ -528,66 +550,50 @@ void PrintEtc () {
 	ZeroSpacetimeCorr ();
 }
 
-void EvalSpacetimeCorr(Snapshot* snap)
-	/*!
-	 * 
-	 *  \brief  space time correlation을 계산한다. 
-	 * q space value는 x, y, z 방향 세개의 방향으로 
-	 * longitudinal version, translational version과 가장 기본적인 방향성분 없는 density
-	 * version 3개를 구함.
-	 *기계 편의적으로 코드가 짜져 있어서 사람이 보기에 별로 직관적이지 못해서 고칠 예정이고 
-	 *거기다가 참조한 기본 코드에서 magnetization에 대한 version으로 바꾸면서 많이 복잡해지고 좋지 
-	 *않아짐. 그리고 개인적으로 속도 vector도 다시 정보로 가져올 것이기 때문에 바뀔 야정 
-	 *
-	 * PREV. $M_T(q,t)$ $M_L(q,t)$ 
-	 * Todo. 
-	 *  \param  Snapshot* Snapshot 포인터 
-	 */
+void ZeroOneTimeCorr(Snapshot* snap)
 {
-	real b, c, c0, c1, c2, s, s1, s2, w;
-	extern real kVal;
-	int j, k,                                     /*!< axis of \f$ \vec{k} \f$  */
-			m,                                        /*!<  \f$ k = m\frac{2\pi}{L} \f$ */
-			n, nb, nc, ni, nv, nr;
-
-	real r[3], mu[3], v[3];          // L[3];
-
-
-	L = snap->box.xhigh- snap->box.xlow;
-	g_Vol  = L*L*L;
-	nPtls = snap->n_atoms;
-	static int first_run = 0;
-	if (first_run ==0 ) {
-		Alloc_more();
-		first_run++;
-	}
-
-	// zero initalize current time value
-	for (j = 0; j < FDOF * nCSpatial; j ++) {
+	for (int j = 0; j < FDOF * nCSpatial; j ++) {
 		rho_q1[j] = 0.;
 	}
 	if ( flagSelf ) {
-		for (n=0; n<nPtls; n++) {
-			for (j = 0; j < FDOF * nCSpatial; j ++) {
+		for (int n=0; n<nPtls; n++) {
+			for (int j = 0; j < FDOF * nCSpatial; j ++) {
 				rho_s_q1[n][j] = 0.;
 				rho_d_q1[n][j] = 0.;
 			}
 		}
 	}
+	real_tensor_zero_r2(&sumVR_ct);
+}
+void EvalOneTimeSumVR(Snapshot* snap) 
+{
+	Rank2R3 VR;  
+	VecR3 dr, vecr3,vel;
+	for (int n=0; n<nPtls; n++) {
+		atom* col_i;
 
-	// we assume L0=L1 = L2 
-	/* 	L[0] = snap->box.xhigh- snap->box.xlow;
-	 * 	L[1] = snap->box.yhigh- snap->box.ylow;
-	 * 	L[2] = snap->box.zhigh- snap->box.zlow;
-	 */
-	kVal = 2.*M_PI / L;
+		col_i = &(snap->atoms[n]);
 
-	//  kVal = 2. * M_PI / nCSpatial;
-	//  Begin Calculatie current time information
+		vecr3.x = col_i->x;
+		vecr3.y = col_i->y;
+		vecr3.z = col_i->z;
+		vel.x = col_i->vx;
+		vel.y = col_i->vy;
+		vel.z = col_i->vz;
+
+		real_tensor_product_r2_r1r1 (& VR, &vel, &vecr3);
+		real_tensor_add_r2_r2r2(&sumVR_ct,&sumVR_ct, &VR);
+	}
+}
+
+void EvalOneTimeKspace(Snapshot* snap)
+{
+	real r[3], v[3],mu[3];
+
 	/*-----------------------------------------------------------------------------
 	 *  Direct calculate  rho(q)
 	 *-----------------------------------------------------------------------------*/
-	for (n=0; n<nPtls; n++) {
+	for (int n=0; n<nPtls; n++) {
 		atom* col_i;
 		col_i = &(snap->atoms[n]);
 		/* 		r[0] = col_i->x; r[0] = r[0] - L* floor(r[0]/L)- L/2.;  
@@ -597,10 +603,11 @@ void EvalSpacetimeCorr(Snapshot* snap)
 		r[0]  =  col_i->x;   r[1] = col_i->y;   r[2]  = col_i->z; 
 		v[0]  =  col_i->vx;  v[1] = col_i->vy;  v[2]  = col_i->vz;
 		mu[0] = col_i->mux; mu[1] = col_i->muy; mu[2] = col_i->muz;
-		j = 0;
+		int j = 0;
+		real b,c,s,c0,c1,s1,c2,s2;
 		// 
-		for (k = 0; k < DIM; k ++) {          
-			for (m = 0; m < nCSpatial; m ++) {  
+		for (int k = 0; k < DIM; k ++) {          
+			for (int m = 0; m < nCSpatial; m ++) {  
 				if (m == 0) {
 					b = kVal * r[k];
 					c = cos (b);
@@ -645,185 +652,225 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	} /* for loop : n<nPtls */
 
 	if ( flagSelf ) {
-		for(j=0; j< FDOF * nCSpatial; j++ ) {
-			for (n=0; n<nPtls; n++) {
+		for(int j=0; j< FDOF * nCSpatial; j++ ) {
+			for (int n=0; n<nPtls; n++) {
 				rho_d_q1[n] [ j] = rho_q1[j] - rho_s_q1 [n][j];
 			}
 		}
 	}
+}
+
+void EvalOneTimeCorr(Snapshot* snap)
+	/*!
+	 * 
+	 *  \brief  one time Correlation을 계산한다. 
+	 * q space value는 x, y, z 방향 세개의 방향으로 
+	 * longitudinal version, translational version과 가장 기본적인 방향성분 없는 density
+	 */
+{
+	void ZeroOneTimeCorr(Snapshot* snap);
+	void EvalOneTimeSumVR(Snapshot* snap) ;
+	void EvalOneTimeKspace(Snapshot* snap);
+
+	ZeroOneTimeCorr(snap);
+
+	EvalOneTimeSumVR(snap);
+	EvalOneTimeKspace(snap);
+}
+
+void SetWaitedTimeCorr(Snapshot* snap, TBuf* tBuf_tw)
+{
+	/*-----------------------------------------------
+	 *   t_w information 
+	 *-----------------------------------------------*/
+	real_tensor_copy_r2r2(& tBuf_tw->orgSumVR, &sumVR_ct);
+	for (int n=0; n<nPtls; n++) {
+		tBuf_tw->orgR[n].x = snap->atoms[n].x;
+		tBuf_tw->orgR[n].y = snap->atoms[n].y;
+		tBuf_tw->orgR[n].z = snap->atoms[n].z;
+	}
+
+	for (int j = 0; j < FDOF * nCSpatial; j ++){
+		tBuf_tw->org_rho_q1[j] = rho_q1[j];
+		if ( flagSelf ) {
+			for (int n=0; n<nPtls; n++) {
+				tBuf_tw->org_rho_s_q1[n][j] = rho_s_q1[n][j];
+				tBuf_tw->org_rho_d_q1[n][j] = rho_d_q1[n][j];
+			}  // for n
+		} // if flagSelf
+	}   // for j
+}
+void InitTwoTimeCorr (Snapshot* snap, TBuf* tBuf_tw, int subtime)
+{
+	/*------------------------------
+	 *  Zero initializing
+	 *-----------------------------*/
+	tBuf_tw->rrMSD[subtime]= 0.;
+	tBuf_tw->rrMQD[subtime]= 0.;
+	real_tensor_zero_r2 (&tBuf_tw->rrMSR2_VR[subtime]);
+
+	for (int  nr=0; nr<nCSpatial; nr++) {
+		tBuf_tw->DrTable[nr][subtime] =0;
+	}
+
+			//F_qq2 0  KSpace
+	for (int j = 0; j < AVDOF * nCSpatial; j ++) {
+		tBuf_tw->F_qq2[j][subtime] = 0.;
+		tBuf_tw->F_s_qq2[j][subtime] = 0.;
+		tBuf_tw->F_d_qq2[j][subtime] = 0.;
+	}
+}
+void EvalTwoTimeEach(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+{
+	for (int n=0; n<nPtls; n++) {
+		VecR3 dr, vecr3,vel;
+		atom* col_i;
+
+		col_i = &(snap->atoms[n]);
+		dr.x =  col_i->x-tBuf_tw->orgR[n].x ;
+		dr.y =  col_i->y-tBuf_tw->orgR[n].y ;
+		dr.z =  col_i->z-tBuf_tw->orgR[n].z ;
+
+		real deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
+
+		int  i_Dr    = (int) (sqrt(deltaR2)/rVal);
+		if (i_Dr<nCSpatial) tBuf_tw->DrTable[i_Dr][subtime] ++;
+
+		tBuf_tw->rrMSD[subtime] += deltaR2;
+		tBuf_tw->rrMQD[subtime] += deltaR2*deltaR2;
+	}
+}
+void EvalTwoTimeCollective(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+{
+	real_tensor_sub_r2_r2r2(&subVR, &sumVR_ct, &tBuf_tw->orgSumVR);
+	real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
+
+	real_tensor_add_r2_r2r2(&tBuf_tw->rrMSR2_VR[subtime],
+			&tBuf_tw->rrMSR2_VR[subtime],
+			&sqVR);
+
+}
+
+void EvalTwoTimeKSpace(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+{
+	real w;
+	int nv;
+	for (int j=0,k = 0; k < DIM; k ++) { // 3 loop
+		for (int m = 0; m < nCSpatial; m ++) {
+			const int diffMarker = m*AVDOF;
+			for (int nc = 0; nc < 7; nc ++) {  
+				//-----------------------------------------------
+				//   n_c = 0 1 2 vx vy vz   3 4 5 mx my mz 6 density
+				//-----------------------------------------------
+				//-----------------------------------------------
+				//   n_v = 0 1  v_long v_trans    2 3 m_long m_trans 4  density
+				//--------------------------------------------
+				if (nc < 3) {    /*   */
+					int axis = nc;
+					if (axis == k) {
+						w = 1.0;
+						nv = diffMarker +V_LONG ;
+					}
+					else {
+						w = 0.5;    //   
+						nv = diffMarker +V_TRANS ;
+					}
+					//              else w *= 0.5;
+				}
+				else if (nc<6) {
+					int axis = nc -3;
+					//              w = Sqr (kVal * (m + 1));
+					if (axis == k) {
+						w = 1.0;
+						nv = diffMarker + M_LONG;
+					}
+					else {
+						w = 0.5;    //   
+						nv = diffMarker +M_TRANS ;
+					}
+					//              else w *= 0.5;
+				}
+				else {
+					w = 1.;  
+					nv = diffMarker + AV_DEN;
+				};   // density   3*m+4
+				// cos(q*r(t)) cos(q*r(t_w) +sin sin
+				if (flagSelf ) {
+					for (int n=0; n<nPtls; n++) {
+						tBuf_tw->F_s_qq2[nv][subtime] +=
+							w * (rho_s_q1[n][j] * tBuf_tw->org_rho_s_q1[n][j] +
+									rho_s_q1[n][j + 1] * tBuf_tw->org_rho_s_q1[n][j + 1]);
+						tBuf_tw->F_d_qq2[nv][subtime] +=
+							w * (rho_d_q1[n][j] * tBuf_tw->org_rho_s_q1[n][j] +
+									rho_d_q1[n][j + 1] * tBuf_tw->org_rho_s_q1[n][j + 1])+
+							w * (rho_s_q1[n][j] * tBuf_tw->org_rho_d_q1[n][j] +
+									rho_s_q1[n][j + 1] * tBuf_tw->org_rho_d_q1[n][j + 1]);
+					}
+				}
+
+				tBuf_tw->F_qq2[nv][subtime] +=
+					w * (rho_q1[j] * tBuf_tw->org_rho_q1[j] +
+							rho_q1[j + 1] * tBuf_tw->org_rho_q1[j + 1]);
+				j += 2;
+			}  // for nc, total j+=8
+			assert ( j% DOF ==0);
+		}    // for m , total j+=8*nCSpatial
+		assert (j%(DOF*nCSpatial)==0);
+	} 
+}
+void EvalTwoTimeCorr(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+{
+	InitTwoTimeCorr(snap, tBuf_tw, subtime);
+	EvalTwoTimeEach(snap, tBuf_tw, subtime);
+	EvalTwoTimeCollective(snap, tBuf_tw, subtime);
+	EvalTwoTimeKSpace(snap, tBuf_tw, subtime);
+
+}
+void EvalSpacetimeCorr(Snapshot* snap)
+	/*!
+	 * 
+	 *  \brief  space time correlation을 계산한다. 
+	 * q space value는 x, y, z 방향 세개의 방향으로 
+	 * longitudinal version, translational version과 가장 기본적인 방향성분 없는 density
+	 * version 3개를 구함.
+	 *기계 편의적으로 코드가 짜져 있어서 사람이 보기에 별로 직관적이지 못해서 고칠 예정이고 
+	 *거기다가 참조한 기본 코드에서 magnetization에 대한 version으로 바꾸면서 많이 복잡해지고 좋지 
+	 *않아짐. 그리고 개인적으로 속도 vector도 다시 정보로 가져올 것이기 때문에 바뀔 야정 
+	 *
+	 * PREV. $M_T(q,t)$ $M_L(q,t)$ 
+	 * Todo. 
+	 *  \param  Snapshot* Snapshot 포인터 
+	 */
+{
+	extern real kVal;
+	void EvalOneTimeCorr(Snapshot* snap);
+
+	L = snap->box.xhigh- snap->box.xlow;
+	g_Vol  = L*L*L;
+	nPtls = snap->n_atoms;
+	static int first_run = 0;
+	if (first_run ==0 ) {
+		Alloc_more();
+		first_run++;
+	}
+
+	kVal = 2.*M_PI / L;
+
+	EvalOneTimeCorr(snap);
 
 	// End Calculate Current time value
 	// Begin Two time corrlation function
-	for (nb = 0; nb < nCBuffer; nb ++) {
+	for (int nb = 0; nb < nCBuffer; nb ++) {
 		if (tBuf[nb].count == 0) {
-			/*-----------------------------------------------------------------------------
-			 *   t_w information 
-			 *-----------------------------------------------------------------------------*/
-			real_tensor_zero_r2(&tBuf[nb].orgSumVR);
-			for (int n=0; n<nPtls; n++) {
-				VecR3  vecr3,vel;
-				Rank2R3 VR;
-				atom* col_i;
-				col_i = &(snap->atoms[n]);
-				vecr3.x = col_i->x;
-				vecr3.y = col_i->y;
-				vecr3.z = col_i->z;
-				vel.x = col_i->vx;
-				vel.y = col_i->vy;
-				vel.z = col_i->vz;
-
-				real_tensor_copy_r1r1(&tBuf[nb].orgR[n], &vecr3);
-				real_tensor_product_r2_r1r1 (&VR, &vel, &vecr3);
-				real_tensor_add_r2_r2r2(&tBuf[nb].orgSumVR, &tBuf[nb].orgSumVR,&VR);
-			}
-
-			//			memcpy(tBuf[nb].org_rho_q1 ,  rho_q1,sizeof(real)*24*nCSpatial);
-			//			memcpy(tBuf[nb].org_rho_s_q1, rho_s_q1,sizeof(real)*24*nCSpatial);
-			for (j = 0; j < FDOF * nCSpatial; j ++){
-				tBuf[nb].org_rho_q1[j] = rho_q1[j];
-				if ( flagSelf ) {
-					for (n=0; n<nPtls; n++) {
-						tBuf[nb].org_rho_s_q1[n][j] = rho_s_q1[n][j];
-						tBuf[nb].org_rho_d_q1[n][j] = rho_d_q1[n][j];
-					}  // for n
-				} // if flagSelf
-			}   // for j
+			SetWaitedTimeCorr(snap, &tBuf[nb]);
 		}     // End   buffer count ==0
 
-
 		if (tBuf[nb].count >= 0) {
-			/*-----------------------------------------------------------------------------
-			 *  Get Delta_r(t)
-			 *-----------------------------------------------------------------------------*/
-			ni = tBuf[nb].count;
-			/*-----------------------------------------------------------------------------
-			 *  Zero initializing
-			 *-----------------------------------------------------------------------------*/
-			tBuf[nb].rrMSD[ni]= 0.;
-			tBuf[nb].rrMQD[ni]= 0.;
-			real_tensor_zero_r2 (&tBuf[nb].rrMSR2_VR[ni]);
-			for ( nr=0; nr<nCSpatial; nr++) {
-				tBuf[nb].DrTable[nr][ni] =0;
-			}
-
-			/*-----------------------------------------------------------------------------
-			 *  Calculation at this time
-			 *-----------------------------------------------------------------------------*/
-			Rank2R3 VR, sumVR,subVR,sqVR;
-			real_tensor_zero_r2(&sumVR);
-
-			for (int n=0; n<nPtls; n++) {
-				VecR3 dr, vecr3,vel;
-				atom* col_i;
-
-				col_i = &(snap->atoms[n]);
-				dr.x =  col_i->x-tBuf[nb].orgR[n].x ;
-				dr.y =  col_i->y-tBuf[nb].orgR[n].y ;
-				dr.z =  col_i->z-tBuf[nb].orgR[n].z ;
-
-				vecr3.x = col_i->x;
-				vecr3.y = col_i->y;
-				vecr3.z = col_i->z;
-				vel.x = col_i->vx;
-				vel.y = col_i->vy;
-				vel.z = col_i->vz;
-
-				real deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
-
-				int  i_Dr    = (int) (sqrt(deltaR2)/rVal);
-				if (i_Dr<nCSpatial) tBuf[nb].DrTable[i_Dr][ni] ++;
-
-				real_tensor_product_r2_r1r1 (& VR, &vel, &vecr3);
-				real_tensor_add_r2_r2r2(&sumVR,&sumVR, &VR);
-
-				tBuf[nb].rrMSD[ni] += deltaR2;
-				tBuf[nb].rrMQD[ni] += deltaR2*deltaR2;
-			}
-
-			real_tensor_sub_r2_r2r2(&subVR, &sumVR, &tBuf[nb].orgSumVR);
-			real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
-
-			real_tensor_add_r2_r2r2(&tBuf[nb].rrMSR2_VR[ni], &tBuf[nb].rrMSR2_VR[ni], &sqVR);
-
-			/*-----------------------------------------------------------------------------
-			 *  two time correlation 
-			 *-----------------------------------------------------------------------------*/
-			//F_qq2 0 initialization
-			for (j = 0; j < AVDOF * nCSpatial; j ++) {
-				tBuf[nb].F_qq2[j][ni] = 0.;
-				tBuf[nb].F_s_qq2[j][ni] = 0.;
-				tBuf[nb].F_d_qq2[j][ni] = 0.;
-			}
-			// add AcfFcol
-
-			for (j=0,k = 0; k < DIM; k ++) { // 3 loop
-				for (m = 0; m < nCSpatial; m ++) {
-					const int diffMarker = m*AVDOF;
-					for (nc = 0; nc < 7; nc ++) {  
-						//-----------------------------------------------------------------------------
-						//   n_c = 0 1 2 vx vy vz   3 4 5 mx my mz 6 density
-						//-----------------------------------------------------------------------------
-						//-----------------------------------------------------------------------------
-						//   n_v = 0 1  v_long v_trans    2 3 m_long m_trans 4  density
-						//--------------------------------------------------------------------------
-						if (nc < 3) {    /*   */
-							int axis = nc;
-							if (axis == k) {
-								w = 1.0;
-								nv = diffMarker +V_LONG ;
-							}
-							else {
-								w = 0.5;    //   
-								nv = diffMarker +V_TRANS ;
-							}
-							//              else w *= 0.5;
-						}
-						else if (nc<6) {
-							int axis = nc -3;
-							//              w = Sqr (kVal * (m + 1));
-							if (axis == k) {
-								w = 1.0;
-								nv = diffMarker + M_LONG;
-							}
-							else {
-								w = 0.5;    //   
-								nv = diffMarker +M_TRANS ;
-							}
-							//              else w *= 0.5;
-						}
-						else {
-							w = 1.;  
-							nv = diffMarker + AV_DEN;
-						};   // density   3*m+4
-						// cos(q*r(t)) cos(q*r(t_w) +sin sin
-						if (flagSelf ) {
-							for (n=0; n<nPtls; n++) {
-								tBuf[nb].F_s_qq2[nv][ni] +=
-									w * (rho_s_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
-											rho_s_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1]);
-								tBuf[nb].F_d_qq2[nv][ni] +=
-									w * (rho_d_q1[n][j] * tBuf[nb].org_rho_s_q1[n][j] +
-											rho_d_q1[n][j + 1] * tBuf[nb].org_rho_s_q1[n][j + 1])+
-									w * (rho_s_q1[n][j] * tBuf[nb].org_rho_d_q1[n][j] +
-											rho_s_q1[n][j + 1] * tBuf[nb].org_rho_d_q1[n][j + 1]);
-							}
-						}
-
-						tBuf[nb].F_qq2[nv][ni] +=
-							w * (rho_q1[j] * tBuf[nb].org_rho_q1[j] +
-									rho_q1[j + 1] * tBuf[nb].org_rho_q1[j + 1]);
-						j += 2;
-					}  // for nc, total j+=8
-					assert ( j% DOF ==0);
-				}    // for m , total j+=8*nCSpatial
-				assert (j%(DOF*nCSpatial)==0);
-
-			}      // for k , total j+=3*DOF*nCSpatial
-			assert( j== FDOF *nCSpatial);
+			EvalTwoTimeCorr(snap,&tBuf[nb],tBuf[nb].count);
 		}                        // End buffer count >=0
 		++ tBuf[nb].count;
 	}
-	AccumSpacetimeCorr (nPtls );
+	AccumSpacetimeCorr ();
 }
 void AllocMemCheck ()
 {

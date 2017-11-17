@@ -48,7 +48,7 @@
 typedef struct {
 	real **F_qq2, *org_rho_q1;
 	real **F_s_qq2, **F_d_qq2, **org_rho_s_q1 , **org_rho_d_q1  ;
-	VecR3 *orgR, *rTrue;
+	VecR3 *orgR, *rTrue; 
 	Rank2R3 orgSumVR;
 	// VecR3 *orgVel; real *acfVel;
 	Rank2R3 *rrMSR2_VR;
@@ -143,25 +143,39 @@ void Alloc_more();
 void AccumSpacetimeCorr ();
 
 /* #####   EXPORTED DATA TYPES   #################################################### */
-real kVal, deltaT, rVal, g_Vol;
+real kVal, deltaT, rVal, g_Vol,mass;
 real L ;                                        /*!< \brief box length */
 int nPtls;
 
 
 TBuf *tBuf;
+
+/*!
+ *  \brief  for Intermediate scattering function <rho(q,t)rho(-q,0)>
+ */
 real **avF_qq2, *rho_q1, **valDqt, **valGammaQT ;
 real **avF_s_qq2, **avF_d_qq2, **rho_s_q1, **rho_d_q1;
 real *rho_s_q1_temp;
 
-real **avDrTable;
 real *factorDr;
 int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime;
-real *rrMSDAv;
-Rank2R3 *rrMSR2_VR_Av;
-real *rrMSR2_VR_Av_offdig;
+Rank2R3 sumVR_ct,subVR,sqVR;
+
+
+/*!
+ *  \brief  for van Hove function
+ */
+real *rrDt;
+real **avDrTable;
+/*!
+ *  \brief  Accumulate and average value
+ */
+real *rrMSR2_VR_Av_offdig;    
 real *rrMSR2_VR_Av_dig;
 real *rrMQDAv;
-real *rrDt;
+real *rrMSDAv;
+Rank2R3 *rrMSR2_VR_Av;
+
 
 
 #endif
