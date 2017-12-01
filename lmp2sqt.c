@@ -33,7 +33,7 @@
 
 
 #define DIM 3
-#define flagSelf 0
+#define flagSelf 1
 
 typedef enum {N_I, N_R} VType;
 typedef struct {
@@ -215,8 +215,8 @@ void AccumSpacetimeCorr ()
 			for (j = 0; j < nCTime; j ++) {
 				rrMSDAv[j] += tBuf[nb].rrMSD[j];
 				rrMQDAv[j] += tBuf[nb].rrMQD[j];
-			  real_tensor_add_r2_r2r2(&rrMSR2_VR_Av[j], 
-						&rrMSR2_VR_Av[j], &tBuf[nb].rrMSR2_VR[j]);
+			  real_tensor_increase_r2_r2(&rrMSR2_VR_Av[j], 
+					 &tBuf[nb].rrMSR2_VR[j]);
 				for ( nr=0; nr<nCSpatial; nr++) {
 					avDrTable[nr][j] += tBuf[nb].DrTable[nr][j];
 				}
@@ -582,7 +582,7 @@ void EvalOneTimeSumVR(Snapshot* snap)
 		vel.z = col_i->vz;
 
 		real_tensor_product_r2_r1r1 (& VR, &vel, &vecr3);
-		real_tensor_add_r2_r2r2(&sumVR_ct,&sumVR_ct, &VR);
+		real_tensor_increase_r2_r2(&sumVR_ct, &VR);
 	}
 }
 
@@ -724,16 +724,15 @@ void EvalTwoTimeEach(Snapshot* snap, TBuf* tBuf_tw, int subtime)
 {
 	for (int n=0; n<nPtls; n++) {
 		VecR3 dr, vecr3,vel;
-		atom* col_i;
+		atom* col_i = &(snap->atoms[n]);
 
-		col_i = &(snap->atoms[n]);
 		dr.x =  col_i->x-tBuf_tw->orgR[n].x ;
 		dr.y =  col_i->y-tBuf_tw->orgR[n].y ;
 		dr.z =  col_i->z-tBuf_tw->orgR[n].z ;
 
 		real deltaR2 = (dr.x*dr.x+dr.y*dr.y+dr.z*dr.z);
 
-		int  i_Dr    = (int) (sqrt(deltaR2)/rVal);
+		int  i_Dr    = floor (sqrt(deltaR2)/rVal);
 		if (i_Dr<nCSpatial) tBuf_tw->DrTable[i_Dr][subtime] ++;
 
 		tBuf_tw->rrMSD[subtime] += deltaR2;
@@ -745,8 +744,7 @@ void EvalTwoTimeCollective(Snapshot* snap, TBuf* tBuf_tw, int subtime)
 	real_tensor_sub_r2_r2r2(&subVR, &sumVR_ct, &tBuf_tw->orgSumVR);
 	real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
 
-	real_tensor_add_r2_r2r2(&tBuf_tw->rrMSR2_VR[subtime],
-			&tBuf_tw->rrMSR2_VR[subtime],
+	real_tensor_increase_r2_r2(&tBuf_tw->rrMSR2_VR[subtime],
 			&sqVR);
 
 }
@@ -757,7 +755,7 @@ void EvalTwoTimeKSpace(Snapshot* snap, TBuf* tBuf_tw, int subtime)
 	int nv;
 	for (int j=0,k = 0; k < DIM; k ++) { // 3 loop
 		for (int m = 0; m < nCSpatial; m ++) {
-			const int diffMarker = m*AVDOF;
+			const int diffMarker = m*FDOF;
 			for (int nc = 0; nc < 7; nc ++) {  
 				//-----------------------------------------------
 				//   n_c = 0 1 2 vx vy vz   3 4 5 mx my mz 6 density
@@ -959,13 +957,21 @@ void Alloc_more () {
 	}
 	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
 	AllocMem (factorDr, nCSpatial, real);
+	AllocMem (radius, nCSpatial, real);
 
 	rho0 = nPtls/g_Vol;
 	for (nr = 0; nr < nCSpatial; nr ++) {
-		if (nr ==0) shell_Vol = 4*M_PI /3. * pow(rVal,3);
-		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
+		if (nr ==0) {
+			shell_Vol = 4*M_PI /3. * pow(rVal,3);
+		}
+		else{
+			shell_Vol = (4./3.)*M_PI * 
+				( pow( (nr+1)*rVal,3)-pow(nr*rVal,3)) ; 
+		}
+//		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
 		// else 부분 확실히 해야함 최근에 다룬적 있음. 
 
+		radius  [nr] = (nr+.5) * rVal;
 		factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
 		/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
 		 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
