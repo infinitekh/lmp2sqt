@@ -18,9 +18,6 @@
 
 
 #include "common.h"
-typedef struct {
-	real R, I;
-} Cmplx;
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,6 +26,7 @@ typedef struct {
 #include <errno.h>
 #include <getopt.h>
 #include <unistd.h>
+#include "common.h"
 
 
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
@@ -59,16 +57,42 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 		x[___nnn]  = strtod (bp, &bp);                \
 }
 
-#define BUFF_LEN 4096
+#define BUFF_LEN 50000
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
 int  type[]    = { 1,   1,  1,  0 };
 int  scail[]    = { 1,   1,  1,  0 };
-char *header[] = {"cur-long", "cur-trans", "mag-long", "mag-trans","density", "vanHove-self",
-	"self-long", "self-trans", "self",
-	"cross-long", "cross-trans", "cross"};
-int header_flag_calc[] = {0,0,1,1,1,0,1,1,1,1,1,1};
-int header_flag_more[] = {1,1,1,1,1,0,1,1,1,1,1,1};
-char *txtCorr = "space-time corr";
+	char *header[] = {
+		"full-cur-long"  	 ,                        // 0
+		"full-cur-trans" 	 ,                        // 1
+		"full-mag-long"  	 ,                        // 2
+		"full-mag-trans" 	 ,                        // 3
+		"full-density"   	 ,                        // 4
+		"self-cur-long"			,                       // 5
+		"self-cur-trans"		,                       // 6
+		"self-mag-long"			,                       // 7
+		"self-mag-trans"		,                       // 8
+		"self-density"			,                       // 9
+		"cross-cur-long"		,                       // 10
+		"cross-cur-trans"		,                       // 11
+		"cross-mag-long"		,                       // 12
+		"cross-mag-trans"		,                       // 13
+		"cross-density" 		,                       // 14
+		"self-vanHove"                              // 15
+		};
+/* char *header[] = {"cur-long", "cur-trans", "mag-long", "mag-trans","density", "vanHove-self",
+ * 	"self-long", "self-trans", "self",
+ * 	"cross-long", "cross-trans", "cross"};
+ */
+int header_flag_calc[] = {
+	0,0,1,1,1,
+	0,0,1,1,1,
+	0,0,1,1,1,
+	1 };
+int header_flag_more[] = {
+	0,0,1,1,1,
+	0,0,1,1,1,
+	0,0,1,1,1,
+	0 };
 /* char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self","self-long", "self-trans", "self"},
  */
 /*  char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
@@ -89,6 +113,7 @@ real deltaT,deltaTCorr,kVal,kVal2;
 void Print_R2_datas ( FILE*, real*);
 
 static int verbose_flag;
+extern char* txtCorr;
 int main ( int argc, char **argv)
 {
 	Cmplx *work;
@@ -245,52 +270,48 @@ int main ( int argc, char **argv)
 	nSet =0;
 	while (1) {
 		//		if ( NULL == (pSnap = read_dump (input ) )) break;
+
+		// To reach end of file, break!!
 		if (! (bp = fgets (buff, BUFF_LEN, input))) break;
 		if (! strncmp (bp, txtCorr, strlen (txtCorr))) {
 			++ nSet;
 			if (nSet < nSetSkip) continue;
 			++ nData;
 			for ( j =0; j < nDataTypes; j++) {
-				bp = fgets (buff, BUFF_LEN, input); // header types check(not completed)
-				if (! strncmp (bp+2, header[j], strlen (header[j]))) {
-					
-				} else { 
-					printf("Errorororrrrrror!!!!!! File not completed!!! \n" 
-							"%s === %s\n", header[j], bp+2);
-					exit (3);
-				}
-#ifndef NDEBUG
-				printf("## header check : %s \n", buff);
-#endif
-/* 				if (! strncmp (bp, header[j], strlen (header[j]))) {
- * 
- * 				}
- */
+				char str_temp[100] = "# ";
+				strncpy(str_temp +2 , header[j], strlen(header[j]));
 
-				for ( n =0; n<nCTime; n ++) {
-					bp = fgets (buff, BUFF_LEN, input);
+				bp = fgets (buff, BUFF_LEN, input); 
+				int ret_cmp = strncmp (bp, str_temp,  strlen (str_temp));
 #ifndef NDEBUG
-					puts(buff);
+				int bbb;
+				printf("strncmp : (%s) %s   %d\n", bp, str_temp,ret_cmp );
+				bbb= getchar();
 #endif
-					for ( k = 0; k < nCSpatial; k += 1 ) {
-						w = strtod (bp, &bp);
+				// header types check(not completed)
+				if ( !ret_cmp )  {
+					for ( n =0; n<nCTime; n ++) {
+						bp = fgets (buff, BUFF_LEN, input);
 #ifndef NDEBUG
-						printf(" %8.4f",w);
+						printf("TIME%5d : %s\n",n,buff);
 #endif
-						corrSum[j][k * nCTime + n] += w;
-						corrSumSq[j][k * nCTime + n] += Sqr(w);
-/* 						sleep(1);
- * 						printf("why is this value nan? %f %f  \n",corrSum[j][k*nCTime +n], w);
- */
+						for ( k = 0; k < nCSpatial; k += 1 ) {
+							w = strtod (bp, &bp);
+#ifndef NDEBUG
+//							printf("LINE %4d : %8.4f",__LINE__,w);
+#endif
+							corrSum[j][k * nCTime + n] += w;
+							corrSumSq[j][k * nCTime + n] += Sqr(w);
+							/* 						sleep(1);
+							 * 						printf("why is this value nan? %f %f  \n",corrSum[j][k*nCTime +n], w);
+							 */
+						}
+#ifndef NDEBUG
+						puts("\n");
+#endif
 					}
-#ifndef NDEBUG
-					puts("\n");
-#endif
 				}
-				bp = fgets (buff, BUFF_LEN, input);// null line
-#ifndef NDEBUG
-				printf("## endline null string default : %s \n", buff);
-#endif
+				bp = fgets (buff, BUFF_LEN, input); 
 			}
 		}
 	}
@@ -337,7 +358,7 @@ int main ( int argc, char **argv)
 *--------------------------------------------------------*/
 				sprintf( output_filename, "%s00.out", header[j] );
 				FILE *output = fopen( output_filename, "w");
-				fprintf(output,"#kVal Sq Gamma Dq\n"
+				fprintf(output,"#kVal F0 F1_0 Gamma Dq0\n"
 						"#deltaT = %9.4f\n", deltaT);
 				int nValDiffTemp=NValDiff;
 				for (k = 0; k < nCSpatial; k ++) {
@@ -452,14 +473,14 @@ int main ( int argc, char **argv)
 				Print_R2_datas(fDqt, Dqt[j]);
 				fclose(fDqt );
 
-				sprintf(fNHqt, "Hqt.%s.info", header[j]);
+				sprintf(fNHqt, "D0Hqt.%s.info", header[j]);
 				FILE* fHqt = fopen(fNHqt, "w");
 				Print_R2_datas(fHqt, Hqt[j]);
 				fclose(fHqt );
 
 				sprintf(fNFqt1, "Fqt1.%s.info", header[j]);
 				FILE* fFqt1 = fopen(fNFqt1, "w");
-				Print_R2_datas(fFqt1,  Fqt[j]);
+				Print_R2_datas(fFqt1,  Fqt1[j]);
 				fclose(fFqt1);
 			}
 		}
@@ -470,7 +491,7 @@ int main ( int argc, char **argv)
 void Print_R2_datas ( FILE* fp, real* datas)
 {
 	real x; int nr, n ;
-	fprintf(fp,"%d", nCSpatial);
+	fprintf(fp,"#%d", nCSpatial);
 	for (nr = 0; nr < nCSpatial; nr += 1 ) {
 		x= (nr+1)*kVal; 
 		printf("### kVal = %d * %f= %f\n", nr+1,kVal,x);

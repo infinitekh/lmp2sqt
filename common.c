@@ -17,7 +17,8 @@
  */
 
 #include "common.h"
-	int fwrite_matrix( FILE *fout, real **m, int xsize, int ysize, real *rt, real *ct)
+char *txtCorr = "##space-time corr";
+int fwrite_matrix( FILE *fout, real **m, int xsize, int ysize, real *rt, real *ct)
 {
 	int j;
 	int status;
@@ -51,6 +52,11 @@ void real_tensor_copy_r2r2(Rank2R3*  lvalue,Rank2R3* rvalue) {
 	lvalue->zx = rvalue->zx;
 	lvalue->zy = rvalue->zy;
 	lvalue->zz = rvalue->zz;
+}
+void real_tensor_product_r1_r0r1(VecR3*  lvalue,real a,VecR3* rvalue) {
+	lvalue->x = a*rvalue->x;
+	lvalue->y = a*rvalue->y;
+	lvalue->z = a*rvalue->z;
 }
 void real_tensor_product_r2_r1r1( Rank2R3* r2,
 		VecR3 *r1a, VecR3* r1b) {
@@ -104,6 +110,13 @@ void real_tensor_sub_r2_r2r2( Rank2R3* r2,
 	r2->zz = r2a->zz - r2b->zz;
 }
 
+void real_tensor_add_r1_r1r1( VecR3* r1,
+		VecR3* r1a, 
+		VecR3* r1b) {
+	r1->x = r1a->x + r1b->x;
+	r1->y = r1a->y + r1b->y;
+	r1->z = r1a->z + r1b->z;
+}
 void real_tensor_add_r2_r2r2( Rank2R3* r2,
 		Rank2R3* r2a, 
 		Rank2R3* r2b) {
@@ -117,26 +130,29 @@ void real_tensor_add_r2_r2r2( Rank2R3* r2,
 	r2->zy = r2a->zy + r2b->zy;
 	r2->zz = r2a->zz + r2b->zz;
 }
-
+void real_tensor_increase_r1_r1( VecR3* r1,
+		VecR3* r1inc) {
+	real_tensor_add_r1_r1r1(r1,r1,r1inc);
+}
+void real_tensor_increase_r2_r2( Rank2R3* r2,
+		Rank2R3* r2inc) {
+	real_tensor_add_r2_r2r2(r2,r2,r2inc);
+}
+void real_tensor_decrease_r2_r2( Rank2R3* r2,
+		Rank2R3* r2dec) {
+	real_tensor_sub_r2_r2r2(r2,r2,r2dec);
+}
 void real_tensor_zero_r2( Rank2R3* r2) {
-	r2->xx = 0.;
-	r2->xy = 0.;
-	r2->xz = 0.;
-	r2->yx = 0.;
-	r2->yy = 0.;
-	r2->yz = 0.;
-	r2->zx = 0.;
-	r2->zy = 0.;
-	r2->zz = 0.;
+	r2->xx = 0.; r2->xy = 0.; r2->xz = 0.;
+	r2->yx = 0.; r2->yy = 0.; r2->yz = 0.;
+	r2->zx = 0.; r2->zy = 0.; r2->zz = 0.;
 }
 real real_tensor_sum_offdig_r2( Rank2R3* r2) {
-	return r2->xy +r2->yz + r2->zx +    r2->yx + r2->zy + r2->zx;
+	return r2->xy +r2->xz + r2->yx +    r2->yz + r2->zx + r2->zy;
 }
 real real_tensor_sum_dig_r2( Rank2R3* r2) {
 	return r2->xx + r2->yy + r2->zz;
 }
 void real_tensor_zero_r1( VecR3* r1) {
-	r1->x =0.;
-	r1->y =0.;
-	r1->z =0.;
+	r1->x =0.; r1->y =0.; r1->z =0.;
 }

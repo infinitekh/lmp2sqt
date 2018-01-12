@@ -15,7 +15,7 @@
  *  GNU General Public License as published by the Free Software Foundation.
  */
 
-#include "lmp2sqt.h"
+#include "lmp2sqt_parallel.h"
 #include "snapshot.h"
 
 #include <assert.h>
@@ -100,10 +100,13 @@ int main(int argc, char** argv) {
 	}
 	GetNameList(argc,argv);
 	int opt_num=1;
-	int opt_fileMax=1;
 	int full_n_snaps=0, full_n_snaps_index=0,progress=-1;
 	bool files_on [argc+3];
+	long int num_data [argc+3];
 	limitCorrAv = 0;
+
+	omp_init_lock(&write_lock);
+	
 
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
 		strcpy( filename,argv[opt_num]);
@@ -113,7 +116,6 @@ int main(int argc, char** argv) {
 			fprintf(stderr,"Can`t open file (%s)!!\n", filename);
 			continue;
 		}
-		Snapshot* snap, *firstSnap;
 
 		// kVal value have be changed because reciprocal information
 
@@ -133,10 +135,18 @@ int main(int argc, char** argv) {
 			files_on [opt_num] = false;
 			//			return 23;
 		}
+		else if ( floor((n_snap - nCTime) /(nCTime/ nCBuffer)) <1) {
+			fprintf(stderr,"The # of snap is too small()\n"
+					     "it dont make a infomation\n"
+					"We would  not use 	this file(%s)!!\n", filename);
+			files_on [opt_num] = false;
+		}
 		else {
+			num_data [opt_num ] = n_snap;
 			if (nCBuffer < 1) {
 				nCBuffer =1;
 			}
+			
 			limitCorrAv += floor((n_snap - nCTime) /(nCTime/ nCBuffer));
 			full_n_snaps += n_snap;
 			files_on [opt_num] = true;
@@ -146,72 +156,91 @@ int main(int argc, char** argv) {
 
 	PrintNameList2File(stderr);
 	UpdateNameList ();
+	int num_files =0;
+	for( opt_num = 1;   opt_num < argc; opt_num++)  {
+		if (files_on[opt_num] == true) num_files ++;
+	}
+	nthreads = omp_get_max_threads();
+	nthreads = (nthreads< num_files)? nthreads:num_files;
+
+	AllocMem(classSqt,nthreads,MakeSqtClass);
+	for ( int tID =0; tID < nthreads; tID++) {
+		classSqt[tID].flag_alloc = 0;
+	}
 
 
-	AllocArray();
-	ZeroSpacetimeCorr ();
+	ZeroAvSpacetimeCorr ();
+#pragma omp parallel for private(nthreads)   schedule(dynamic)
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
 		if (files_on[opt_num] == false) continue;
 		strcpy( filename,argv[opt_num]);
 		FILE* fp = fopen( filename ,"r");
 		Snapshot* snap, *firstSnap;
-		n_snap = 0;	
-		InitSpacetimeCorr();
+		int threadID = omp_get_thread_num();
+		MakeSqtClass* cl_sqt = & classSqt[threadID];
+		InitSpacetimeCorr(cl_sqt);
 		/*!
 		 *  \brief  Start Calculation.
 		 */
-		rewind(fp);  n_snap =0;
+		rewind(fp);  
 		firstSnap = read_dump(fp);
 		Init_reciprocal_space(firstSnap);
 		rewind(fp);
 		fprintf(stderr,"FULL_SNAPS = %5d\n",full_n_snaps);
-		while(1) {
+		for (int ns = 0 ; ns < num_data[opt_num] ; ns++ ) {
+			/* 		while(1) {}
+			*/
 			snap =	read_dump(fp);
-
 			if (snap == NULL)
 				break;
-
-			EvalSpacetimeCorr(snap);
+			cl_sqt->snap = snap;
+			EvalSpacetimeCorr(cl_sqt);
 
 			free_Snapshot(snap);
-			n_snap++; full_n_snaps_index++;
-			
+#pragma omp atomic
+			full_n_snaps_index++;
+
 			int new_progress =(1000.0*full_n_snaps_index/ full_n_snaps);
-/* 			fprintf(stderr,"FULL_SNAPS = %5d, newprogress %d\n",full_n_snaps_index,
- * 					new_progress);
- */
+			/* 			fprintf(stderr,"FULL_SNAPS = %5d, newprogress %d\n",full_n_snaps_index,
+			 * 					new_progress);
+			 */
 			if (new_progress != progress ) {
 				progress = new_progress;
 				fprintf(stderr, "\r%5.1f%%", progress*.1);
-//				fflush(stderr);
+				//				fflush(stderr);
 			}
 		}
-		opt_num ++;
+		//		opt_num ++;
 		fclose (fp);
 		fprintf(stderr, "\nEnd : file : %s\n", filename);
 	}
+
 
 	if ( Number_call_Print ==0 ) {
 		fprintf(stderr, "limit corr  = %d, countCorrAv = %d\n",
 				limitCorrAv,countCorrAv);
 		FILE* output = fopen("full_results.info", "w");
+		limitCorrAv =countCorrAv;
 		PrintSpacetimeCorr(output);
 		fclose(output);
 
 	}
 
+	omp_destroy_lock(&write_lock);
 	return 0;
 }
 
-void AccumSpacetimeCorr ()
+void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 	/*!
 	 *  \brief  계산된 현재 시간의 SpaceTime correlation을 누적한다. 
 	 */
 {
 	int k,  nb, nr, n, nt;
+	TBuf* tBuf = cl_sqt->tBuf;
 	TBuf* pt;
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		if (tBuf[nb].count == nCTime) {
+			omp_set_lock(&write_lock);
 			// check!! that  data is full
 			// S(q,t), M(q,t) part
 			pt = &tBuf[nb];
@@ -240,11 +269,12 @@ void AccumSpacetimeCorr ()
 			if (countCorrAv == limitCorrAv) {
 				PrintSpacetimeCorr (stdout);
 			}
+			omp_unset_lock(&write_lock);
 		} //   if tBuf[nb].count is full
 	}   // for all buffer
 }
 
-void InitSpacetimeCorr ()
+void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 	/*!
 	 *  \brief  프로그램 초기에 시간 평균을 낼 수 있도록 index를 부여하는 과정
 	 */
@@ -253,6 +283,7 @@ void InitSpacetimeCorr ()
 		fputs("Error nCBuffer> nCTime\n", stderr);
 		exit(1);
 	}
+	TBuf* tBuf = cl_sqt->tBuf;
 
 	for (int nb = 0; nb < nCBuffer; nb ++){
 		tBuf[nb].count = - nb * nCTime / nCBuffer;
@@ -260,7 +291,7 @@ void InitSpacetimeCorr ()
 	}
 }
 
-void ZeroSpacetimeCorr ()
+void ZeroAvSpacetimeCorr ()
 	/*!
 	 *  \brief  출력 후 또는, 프로그램 시작시 평균 계산을 위한 메모리를 
 	 *  			0값으로 초기화
@@ -585,11 +616,15 @@ void PrintEtc () {
 	 * 	fclose(fp_Gr);
 	 */
 
-	ZeroSpacetimeCorr ();
+	ZeroAvSpacetimeCorr ();  //FIXIT   아무의미없음 출력에서 교체합시다. 
 }
 
-void ZeroOneTimeCorr(Snapshot* snap)
+void ZeroOneTimeCorr(MakeSqtClass* cl_sqt)
 {
+	TBuf* tBuf = cl_sqt->tBuf;
+	real *	rho_q1  = tBuf->rho_q1 ;
+	real **	rho_s_q1  = tBuf->rho_s_q1 ;
+	real **	rho_d_q1 = tBuf->rho_d_q1;
 	for (int j = 0; j < FDOF * nCSpatial; j ++) {
 		rho_q1[j] = 0.;
 	}
@@ -601,15 +636,16 @@ void ZeroOneTimeCorr(Snapshot* snap)
 			}
 		}
 	}
-	real_tensor_zero_r2(&sumVR_ct);
+	real_tensor_zero_r2(&tBuf->sumVR_ct);
 }
-void EvalOneTimeSumVR(Snapshot* snap) 
+void EvalOneTimeSumVR(MakeSqtClass* cl_sqt) 
 {
 	Rank2R3 VR;  
 	VecR3  vecr3,vel;
+	atom* col_i;
+	TBuf* tBuf = cl_sqt->tBuf;
+	Snapshot* snap = cl_sqt->snap;
 	for (int n=0; n<nPtls; n++) {
-		atom* col_i;
-
 		col_i = &(snap->atoms[n]);
 
 		vecr3.x = col_i->x;
@@ -620,20 +656,26 @@ void EvalOneTimeSumVR(Snapshot* snap)
 		vel.z = col_i->vz;
 
 		real_tensor_product_r2_r1r1 (& VR, &vel, &vecr3);
-		real_tensor_increase_r2_r2(&sumVR_ct, &VR);
+		real_tensor_increase_r2_r2(&tBuf->sumVR_ct, &VR);
 	}
 }
 
-void EvalOneTimeKspace(Snapshot* snap)
+void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 {
 	real r[3], v[3],mu[3];
 	int marker;
+	Snapshot* snap = cl_sqt->snap;
+	TBuf* tBuf = cl_sqt->tBuf;
+	real *	rho_q1  = tBuf->rho_q1 ;
+	real *	rho_s_q1_temp  = tBuf->rho_s_q1_temp ;
+	real **	rho_s_q1  = tBuf->rho_s_q1 ;
+	real **	rho_d_q1 = tBuf->rho_d_q1;
+	atom* col_i;
 
 /*-----------------------------------------------------------------------------
  *  Direct calculate  rho(q)
  *-----------------------------------------------------------------------------*/
 	for (int n=0; n<nPtls; n++) {
-		atom* col_i;
 		col_i = &(snap->atoms[n]);
 
 		r[0]  =  col_i->x;   r[1] = col_i->y;   r[2]  = col_i->z; 
@@ -705,7 +747,7 @@ void EvalOneTimeKspace(Snapshot* snap)
 	}
 }
 
-void EvalOneTimeCorr(Snapshot* snap)
+void EvalOneTimeCorr(MakeSqtClass* cl_sqt)
 	/*!
 	 * 
 	 *  \brief  one time Correlation을 계산한다. 
@@ -713,22 +755,28 @@ void EvalOneTimeCorr(Snapshot* snap)
 	 * longitudinal version, translational version과 가장 기본적인 방향성분 없는 density
 	 */
 {
-	void ZeroOneTimeCorr(Snapshot* snap);
-	void EvalOneTimeSumVR(Snapshot* snap) ;
-	void EvalOneTimeKspace(Snapshot* snap);
+	void ZeroOneTimeCorr(MakeSqtClass* cl_sqt);
+	void EvalOneTimeSumVR(MakeSqtClass* cl_sqt) ;
+	void EvalOneTimeKspace(MakeSqtClass* cl_sqt);
 
-	ZeroOneTimeCorr(snap);
+	ZeroOneTimeCorr(cl_sqt);
 
-	EvalOneTimeSumVR(snap);
-	EvalOneTimeKspace(snap);
+	EvalOneTimeSumVR(cl_sqt);
+	EvalOneTimeKspace(cl_sqt);
 }
 
-void SetWaitedTimeCorr(Snapshot* snap, TBuf* tBuf_tw)
+void SetWaitedTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw)
 {
 	/*-----------------------------------------------
 	 *   t_w information 
 	 *-----------------------------------------------*/
-	real_tensor_copy_r2r2(& tBuf_tw->orgSumVR, &sumVR_ct);
+	TBuf* tBuf = cl_sqt->tBuf;
+	Snapshot* snap = cl_sqt->snap;
+	real *	rho_q1  = tBuf->rho_q1 ;
+	real **	rho_s_q1  = tBuf->rho_s_q1 ;
+	real **	rho_d_q1 = tBuf->rho_d_q1;
+
+	real_tensor_copy_r2r2(& tBuf_tw->orgSumVR, &tBuf->sumVR_ct);
 	for (int n=0; n<nPtls; n++) {
 		tBuf_tw->orgR[n].x = snap->atoms[n].x;
 		tBuf_tw->orgR[n].y = snap->atoms[n].y;
@@ -745,7 +793,7 @@ void SetWaitedTimeCorr(Snapshot* snap, TBuf* tBuf_tw)
 		} // if flagSelf
 	}   // for j
 }
-void InitTwoTimeCorr (Snapshot* snap, TBuf* tBuf_tw, int subtime)
+void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
 	/*------------------------------
 	 *  Zero initializing
@@ -766,8 +814,9 @@ void InitTwoTimeCorr (Snapshot* snap, TBuf* tBuf_tw, int subtime)
 		tBuf_tw->F_d_qq2[k][subtime] = 0.;
 	}
 }
-void EvalTwoTimeEach(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
+	Snapshot* snap = cl_sqt->snap;
 	for (int n=0; n<nPtls; n++) {
 		VecR3 dr;
 		real dx2,dy2,dz2,dr2;
@@ -792,19 +841,25 @@ void EvalTwoTimeEach(Snapshot* snap, TBuf* tBuf_tw, int subtime)
 		tBuf_tw->rrMQD[subtime] += dr2*dr2;
 	}
 }
-void EvalTwoTimeCollective(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+void EvalTwoTimeCollective(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
-	real_tensor_sub_r2_r2r2(&subVR, &sumVR_ct, &tBuf_tw->orgSumVR);
+	Rank2R3 subVR,sqVR;
+	TBuf* tBuf = cl_sqt->tBuf;
+	real_tensor_sub_r2_r2r2(&subVR, &tBuf->sumVR_ct, &tBuf_tw->orgSumVR);
 	real_tensor_product_r2_r2r2 (& sqVR, & subVR, & subVR);
 
 	real_tensor_increase_r2_r2(&tBuf_tw->rrMSR2_VR[subtime],
 			&sqVR);
 }
 
-void EvalTwoTimeKSpace(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
 	real w;
 	int nav,ncos,nsin;
+	TBuf* tBuf = cl_sqt->tBuf;
+	real *	rho_q1  = tBuf->rho_q1 ;
+	real **	rho_s_q1  = tBuf->rho_s_q1 ;
+	real **	rho_d_q1 = tBuf->rho_d_q1;
 	for (int axis_b = 0; axis_b < DIMEN; axis_b ++) { // 3 loop
 		for (int nk = 0; nk < nCSpatial; nk ++) {
 			const int avMarker = nk*AVDOF;
@@ -871,14 +926,14 @@ void EvalTwoTimeKSpace(Snapshot* snap, TBuf* tBuf_tw, int subtime)
 		}    // for nk , 
 	} 
 }
-void EvalTwoTimeCorr(Snapshot* snap, TBuf* tBuf_tw, int subtime)
+void EvalTwoTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
-	InitTwoTimeCorr(snap, tBuf_tw, subtime);
-	EvalTwoTimeEach(snap, tBuf_tw, subtime);
-	EvalTwoTimeCollective(snap, tBuf_tw, subtime);
-	EvalTwoTimeKSpace(snap, tBuf_tw, subtime);
+	InitTwoTimeCorr(cl_sqt, tBuf_tw, subtime);
+	EvalTwoTimeEach(cl_sqt, tBuf_tw, subtime);
+	EvalTwoTimeCollective(cl_sqt, tBuf_tw, subtime);
+	EvalTwoTimeKSpace(cl_sqt, tBuf_tw, subtime);
 }
-void EvalSpacetimeCorr(Snapshot* snap)
+void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 	/*!
 	 * 
 	 *  \brief  space time correlation을 계산한다. 
@@ -891,34 +946,36 @@ void EvalSpacetimeCorr(Snapshot* snap)
 	 */
 {
 	extern real kVal;
-	void EvalOneTimeCorr(Snapshot* snap);
+	void EvalOneTimeCorr(MakeSqtClass* cl_sqt);
+	TBuf* tBuf = cl_sqt->tBuf;
+	Snapshot* snap = cl_sqt->snap;
+	int  first_run = cl_sqt->first_run;
 
 	L = snap->box.xhigh- snap->box.xlow;
 	g_Vol  = L*L*L;
 	nPtls = snap->n_atoms;
-	static int first_run = 0;
 	if (first_run ==0 ) {
-		Alloc_more();
+		Alloc_more(cl_sqt);
 		first_run++;
 	}
 
 	kVal = 2.*M_PI / L;
 
-	EvalOneTimeCorr(snap);
+	EvalOneTimeCorr(cl_sqt);
 
 	// End Calculate Current time value
 	// Begin Two time corrlation function
 	for (int nb = 0; nb < nCBuffer; nb ++) {
 		if (tBuf[nb].count == 0) {
-			SetWaitedTimeCorr(snap, &tBuf[nb]);
+			SetWaitedTimeCorr(cl_sqt, &tBuf[nb]);
 		}     // End   buffer count ==0
 
 		if (tBuf[nb].count >= 0) {
-			EvalTwoTimeCorr(snap,&tBuf[nb],tBuf[nb].count);
+			EvalTwoTimeCorr(cl_sqt,&tBuf[nb],tBuf[nb].count);
 		}                        // End buffer count >=0
 		++ tBuf[nb].count;
 	}
-	AccumSpacetimeCorr ();
+	AccumSpacetimeCorr (cl_sqt);
 }
 void AllocMemCheck ()
 {
@@ -927,7 +984,7 @@ void AllocMemCheck ()
 		exit(1);
 	}
 }
-void AllocArray ()
+void AllocArray (MakeSqtClass* cl_sqt)
 	/*!
 	 *  \brief   이름그대로 memory 할다함. 
 	 *     				rho_q1 functions of q      
@@ -935,15 +992,21 @@ void AllocArray ()
 	 */
 {
 	int nb;
+	TBuf* tBuf = cl_sqt->tBuf;
+	real *	rho_q1  = tBuf->rho_q1 ;
+	
 
 	AllocMem (rho_q1, FDOF * nCSpatial, real);
 
-	AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
-	AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
-	AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
+	static int global_data =0;
+	if (global_data ==0 ) {
+		AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+		AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
 
-	AllocMem2 (valDqt,  nCSpatial, nCTime, real);
-	AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
+		AllocMem2 (valDqt,  nCSpatial, nCTime, real);
+		AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
+	}
 	AllocMem (tBuf, nCBuffer, TBuf);
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		AllocMem (tBuf[nb].org_rho_q1, FDOF * nCSpatial, real);
@@ -956,26 +1019,34 @@ void AllocArray ()
 	 *  \brief  Memory for Green-Kubo formula
 	 */
 	// AllocArray for Diffuse ()
-	AllocMem (rrMSDAv, nCTime, real);
-	AllocMem (rrMSR1_R_Av , nCTime, VecR3);
-	AllocMem (rrMQDAv, nCTime, real);
-	// AllocArray for shear viscosity
-	// 				 (diffusion of momentum)
-	AllocMem (rrMSR2_VR_Av, nCTime, Rank2R3);
-	AllocMem (rrMSR2_VR_Av_dig, nCTime, real);
-	AllocMem (rrMSR2_VR_Av_offdig, nCTime, real);
-	AllocMem (rrDt, nCTime, real);
-	AllocMem2 (avDrTable, nCSpatial,nCTime, real);
+	if (global_data ==0 ) {
+		AllocMem (rrMSDAv, nCTime, real);
+		AllocMem (rrMSR1_R_Av , nCTime, VecR3);
+		AllocMem (rrMQDAv, nCTime, real);
+		// AllocArray for shear viscosity
+		// 				 (diffusion of momentum)
+		AllocMem (rrMSR2_VR_Av, nCTime, Rank2R3);
+		AllocMem (rrMSR2_VR_Av_dig, nCTime, real);
+		AllocMem (rrMSR2_VR_Av_offdig, nCTime, real);
+		AllocMem (rrDt, nCTime, real);
+		AllocMem2 (avDrTable, nCSpatial,nCTime, real);
+	}
 
 	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
 }
-void Alloc_more () {
+void Alloc_more (MakeSqtClass* cl_sqt) {
 	/*!
 	 *  \brief  Alloc_more 
 	 *          Allocing   using nPtls  is post-process
 	 *
 	 */
 	int nb,nr; real rho0, shell_Vol;
+
+	TBuf* tBuf = cl_sqt->tBuf;
+	real *rho_s_q1_temp = tBuf->rho_s_q1_temp;
+	real **rho_s_q1 = tBuf->rho_s_q1;
+	real **rho_d_q1 = tBuf->rho_d_q1;
+
 	AllocMem (rho_s_q1_temp, FDOF * nCSpatial, real);
 
 	if (flagSelf ) {
@@ -1007,27 +1078,32 @@ void Alloc_more () {
 		}
 	}
 	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
-	AllocMem (factorDr, nCSpatial, real);
-	AllocMem (radius, nCSpatial, real);
+	static int global_data =0;
+	if (global_data ==0 ) {
+		AllocMem (factorDr, nCSpatial, real);
+		AllocMem (radius, nCSpatial, real);
 
-	rho0 = nPtls/g_Vol;
-	for (nr = 0; nr < nCSpatial; nr ++) {
-		if (nr ==0) {
-			shell_Vol = 4*M_PI /3. * pow(rVal,3);
-		}
-		else{
-			shell_Vol = (4./3.)*M_PI * 
-				( pow( (nr+1)*rVal,3)-pow(nr*rVal,3)) ; 
-		}
-//		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
-		// else 부분 확실히 해야함 최근에 다룬적 있음. 
+		rho0 = nPtls/g_Vol;
+		for (nr = 0; nr < nCSpatial; nr ++) {
+			if (nr ==0) {
+				shell_Vol = 4*M_PI /3. * pow(rVal,3);
+			}
+			else{
+				shell_Vol = (4./3.)*M_PI * 
+					( pow( (nr+1)*rVal,3)-pow(nr*rVal,3)) ; 
+			}
+			//		else shell_Vol = 4*M_PI * pow(rVal,3)* (nr*nr + 1./12.);
+			// else 부분 확실히 해야함 최근에 다룬적 있음. 
 
-		radius  [nr] = (nr+.5) * rVal;
-		factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
-		/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
-		 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
-		 */
-	}
+			radius  [nr] = (nr+.5) * rVal;
+			factorDr[nr] = 1./( pow(rho0,2) * g_Vol *shell_Vol*limitCorrAv);
+			/* 		printf("rho0=%.2e, Vol=%.2e, shell_Vol=%.2e, factorDr=%.2e\n", 
+			 * 				rho0,g_Vol,shell_Vol,factorDr[nr]);
+			 */
+		}
+		global_data = 1;
+	} // if global_data   
+
 	fprintf(stderr, "Reserving memory on heap via AllocMem : %d mb\n", (int) ll_mem_size/1000/1000);
 }
 

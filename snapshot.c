@@ -20,6 +20,7 @@ const char s_atoms_vel[]    = "ITEM: ATOMS id type xu yu zu vx vy vz";
 const char s_atoms_all[]    = "ITEM: ATOMS id type xu yu zu mux muy muz vx vy vz";
 const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 const char delimeter[] = " ";
+char * strtok_null_safe ( char * str, const char * delimiters );
 int read_dump_OnlyCheck( FILE* fp) {
 	const int i_timestep = strlen(s_timestep);
 	const int i_n_atoms = strlen(s_n_atoms);
@@ -32,6 +33,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 	bigint timestep;
 	int n_atoms;
 	real xlow,xhigh,ylow,yhigh,zlow,zhigh;
+	error_code =0;
 /* 	atom_column atom_ids = { 
  * 		.id = -1 ,.type=-1,
  * 	 .x= -1,.y=-1,.z=-1,
@@ -88,14 +90,14 @@ int read_dump_OnlyCheck( FILE* fp) {
 		return FAIL;
 
 	read_lines(1,fp); 
-	xlow = atof(strtok(line,delimeter));
-	xhigh = atof(strtok(NULL,delimeter));
+	xlow = atof(strtok_null_safe(line,delimeter));
+	xhigh = atof(strtok_null_safe(NULL,delimeter));
 	read_lines(1,fp); 
-	ylow = atof(strtok(line,delimeter));
-	yhigh = atof(strtok(NULL,delimeter));
+	ylow = atof(strtok_null_safe(line,delimeter));
+	yhigh = atof(strtok_null_safe(NULL,delimeter));
 	read_lines(1,fp); 
-	zlow = atof(strtok(line,delimeter));
-	zhigh = atof(strtok(NULL,delimeter));
+	zlow = atof(strtok_null_safe(line,delimeter));
+	zhigh = atof(strtok_null_safe(NULL,delimeter));
 
 	
 	Snapshot *snap   = new_Snapshot(timestep,n_atoms);
@@ -122,11 +124,13 @@ int read_dump_OnlyCheck( FILE* fp) {
 					id,type,
 					xu,yu,zu,
 					mux,muy,muz);*/
+			if (error_code == 1) return FAIL;
 		}
 	}
 	else if (strncmp(s_atoms_vel,line,i_atoms_vel) ==0 ) {
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
+			if (error_code == 1) return FAIL;
 			/*	fprintf(stderr,"%d %d %f %f %f %f %f %f\n", 
 					id,type,
 					xu,yu,zu,
@@ -136,6 +140,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 	else if (strncmp(s_atoms_dipole,line,i_atoms_dipole) ==0 ) {
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
+			if (error_code == 1) return FAIL;
 			/*	fprintf(stderr,"%d %d %f %f %f %f %f %f\n", 
 					id,type,
 					xu,yu,zu,
@@ -145,6 +150,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 	else if (strncmp(s_atoms_all,line,i_atoms_all) ==0 ) {
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
+			if (error_code == 1) return FAIL;
 			/*	fprintf(stderr,"%d %d %f %f %f %f %f %f\n", 
 					id,type,
 					xu,yu,zu,
@@ -155,10 +161,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 		return FAIL;
 	}
 
-	error_code =0;
 	return SUCCESS;
-#undef FAIL
-#undef SUCCESS
 }
 Snapshot* read_dump( FILE* fp) {
 	const char s_timestep[] = "ITEM: TIMESTEP";
@@ -188,6 +191,7 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 	real vx,vy,vz;
 	int i;
 	atom* p_atom;
+	error_code =0;
 
 	read_lines(1,fp);
 	if( strncmp(s_timestep,line,i_timestep) !=0) {
@@ -229,14 +233,14 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 		return (Snapshot*)(error("not ITEM: BOX BOUNDS pp pp pp(ff)"));
 
 	read_lines(1,fp); 
-	xlow = atof(strtok(line,delimeter));
-	xhigh = atof(strtok(NULL,delimeter));
+	xlow = atof(strtok_null_safe(line,delimeter));
+	xhigh = atof(strtok_null_safe(NULL,delimeter));
 	read_lines(1,fp); 
-	ylow = atof(strtok(line,delimeter));
-	yhigh = atof(strtok(NULL,delimeter));
+	ylow = atof(strtok_null_safe(line,delimeter));
+	yhigh = atof(strtok_null_safe(NULL,delimeter));
 	read_lines(1,fp); 
-	zlow = atof(strtok(line,delimeter));
-	zhigh = atof(strtok(NULL,delimeter));
+	zlow = atof(strtok_null_safe(line,delimeter));
+	zhigh = atof(strtok_null_safe(NULL,delimeter));
 
 	
 	Snapshot *snap   = new_Snapshot(timestep,n_atoms);
@@ -254,36 +258,42 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 //	fprintf(stderr,"%f %f\n", snap->box.zlow,snap->box.zhigh);
 
 	read_lines(1,fp);
-
+	
 	if( strncmp(s_atoms_dipole,line,i_atoms_dipole) ==0) {
+#ifndef NDEBUG
 		fprintf(stderr,"s_atoms_dipole style snapshot\n");
+#endif
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
-			id =atoi(strtok(line, delimeter));
-			type = atoi(strtok(NULL,delimeter));
-			xu   = atof(strtok(NULL,delimeter));
-			yu   = atof(strtok(NULL,delimeter));
-			zu   = atof(strtok(NULL,delimeter));
-			mux   = atof(strtok(NULL,delimeter));
-			muy   = atof(strtok(NULL,delimeter));
-			muz   = atof(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+			id =atoi(strtok_null_safe(line, delimeter));
+			type = atoi(strtok_null_safe(NULL,delimeter));
+			xu   = atof(strtok_null_safe(NULL,delimeter));
+			yu   = atof(strtok_null_safe(NULL,delimeter));
+			zu   = atof(strtok_null_safe(NULL,delimeter));
+			mux   = atof(strtok_null_safe(NULL,delimeter));
+			muy   = atof(strtok_null_safe(NULL,delimeter));
+			muz   = atof(strtok_null_safe(NULL,delimeter));
 
 			p_atom = &(snap->atoms[i]);
 			make_atom_dipole( p_atom,id,type,xu,yu,zu,mux,muy,muz);
 		}
 	}
 	else if (strncmp(s_atoms_vel,line,i_atoms_vel) ==0 ) {
+#ifndef NDEBUG
 		fprintf(stderr,"s_atoms_vel style snapshot\n");
+#endif
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
-			id =atoi(strtok(line, delimeter));
-			type = atoi(strtok(NULL,delimeter));
-			xu   = atof(strtok(NULL,delimeter));
-			yu   = atof(strtok(NULL,delimeter));
-			zu   = atof(strtok(NULL,delimeter));
-			vx   = atof(strtok(NULL,delimeter));
-			vy   = atof(strtok(NULL,delimeter));
-			vz   = atof(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+			id =atoi(strtok_null_safe(line, delimeter));
+			type = atoi(strtok_null_safe(NULL,delimeter));
+			xu   = atof(strtok_null_safe(NULL,delimeter));
+			yu   = atof(strtok_null_safe(NULL,delimeter));
+			zu   = atof(strtok_null_safe(NULL,delimeter));
+			vx   = atof(strtok_null_safe(NULL,delimeter));
+			vy   = atof(strtok_null_safe(NULL,delimeter));
+			vz   = atof(strtok_null_safe(NULL,delimeter));
 
 			p_atom = &(snap->atoms[i]);
 			make_atom_vel( p_atom,id,type,xu,yu,zu,vx,vy,vz);
@@ -295,20 +305,23 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 
 	}
 	else if (strncmp(s_atoms_all,line,i_atoms_all) ==0 ) {
+#ifndef NDEBUG
 		fprintf(stderr,"s_atoms_all style snapshot\n");
+#endif
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
-			id =atoi(strtok(line, delimeter));
-			type = atoi(strtok(NULL,delimeter));
-			xu   = atof(strtok(NULL,delimeter));
-			yu   = atof(strtok(NULL,delimeter));
-			zu   = atof(strtok(NULL,delimeter));
-			mux   = atof(strtok(NULL,delimeter));
-			muy   = atof(strtok(NULL,delimeter));
-			muz   = atof(strtok(NULL,delimeter));
-			vx   = atof(strtok(NULL,delimeter));
-			vy   = atof(strtok(NULL,delimeter));
-			vz   = atof(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+			id =atoi(strtok_null_safe(line, delimeter));
+			type = atoi(strtok_null_safe(NULL,delimeter));
+			xu   = atof(strtok_null_safe(NULL,delimeter));
+			yu   = atof(strtok_null_safe(NULL,delimeter));
+			zu   = atof(strtok_null_safe(NULL,delimeter));
+			mux   = atof(strtok_null_safe(NULL,delimeter));
+			muy   = atof(strtok_null_safe(NULL,delimeter));
+			muz   = atof(strtok_null_safe(NULL,delimeter));
+			vx   = atof(strtok_null_safe(NULL,delimeter));
+			vy   = atof(strtok_null_safe(NULL,delimeter));
+			vz   = atof(strtok_null_safe(NULL,delimeter));
 
 			p_atom = &(snap->atoms[i]);
 			make_atom_all( p_atom,id,type,xu,yu,zu,mux,muy,muz,vx,vy,vz);
@@ -316,17 +329,20 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 
 	}
 	else if (strncmp(s_atoms_vel,line,i_atoms_vel) ==0 ) {
+#ifndef NDEBUG
 		fprintf(stderr,"s_atoms_vel style snapshot\n");
+#endif
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
-			id =atoi(strtok(line, delimeter));
-			type = atoi(strtok(NULL,delimeter));
-			xu   = atof(strtok(NULL,delimeter));
-			yu   = atof(strtok(NULL,delimeter));
-			zu   = atof(strtok(NULL,delimeter));
-			vx   = atof(strtok(NULL,delimeter));
-			vy   = atof(strtok(NULL,delimeter));
-			vz   = atof(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+			id =atoi(strtok_null_safe(line, delimeter));
+			type = atoi(strtok_null_safe(NULL,delimeter));
+			xu   = atof(strtok_null_safe(NULL,delimeter));
+			yu   = atof(strtok_null_safe(NULL,delimeter));
+			zu   = atof(strtok_null_safe(NULL,delimeter));
+			vx   = atof(strtok_null_safe(NULL,delimeter));
+			vy   = atof(strtok_null_safe(NULL,delimeter));
+			vz   = atof(strtok_null_safe(NULL,delimeter));
 
 			p_atom = &(snap->atoms[i]);
 			make_atom_vel( p_atom,id,type,xu,yu,zu,vx,vy,vz);
@@ -340,11 +356,12 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 	else if (strncmp(s_atoms,line,i_atoms) ==0 ) {
 		for (i=0; i<n_atoms; i++){
 			read_lines(1,fp);
-			id =atoi(strtok(line, delimeter));
-			type = atoi(strtok(NULL,delimeter));
-			xu   = atof(strtok(NULL,delimeter));
-			yu   = atof(strtok(NULL,delimeter));
-			zu   = atof(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+			id =atoi(strtok_null_safe(line, delimeter));
+			type = atoi(strtok_null_safe(NULL,delimeter));
+			xu   = atof(strtok_null_safe(NULL,delimeter));
+			yu   = atof(strtok_null_safe(NULL,delimeter));
+			zu   = atof(strtok_null_safe(NULL,delimeter));
 
 			p_atom = &(snap->atoms[i]);
 			make_atom( p_atom,id,type,xu,yu,zu);
@@ -366,17 +383,30 @@ void* error( char string[MAXLINE] ) {
 #ifndef NDEBUG
 	fputs( string, stderr );
 	fputs( "\n", stderr );
-	error_code =1;
 #endif
 	return NULL;
 	//	exit(1);
 }
+char * strtok_null_safe ( char * str, const char * delimiters ) {
+
+	char* ret_str = strtok(str,delimiters);
+	if (ret_str == NULL ) {
+		error_code = 1 ; 
+		return "0";
+	}
+	return  ret_str;
+}
+
 void read_lines(int n,FILE* fp)  // from lammps reader_native.cpp
 {
 	char *eof;int i;
 	for (i = 0; i < n; i++) eof = fgets(line,MAXLINE,fp);
-	if (eof == NULL) error("Unexpected end of dump file");
+	if (eof == NULL) {
+		error_code = 1;
+		error("Unexpected end of dump file");
+	}
 }
+
 
 Snapshot* new_Snapshot(bigint timestep, int n) {
 	Snapshot* snap = (Snapshot*) malloc(sizeof(Snapshot));
@@ -475,15 +505,16 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 		if( strncmp(s_atoms_dipole,line,i_atoms_dipole) ==0) {
 			for (i=0; i<n_atoms; i++){
 				read_lines(1,fp);
-				id =atoi(strtok(line, delimeter));
-				type = atoi(strtok(NULL,delimeter));
+				if (error_code == 1) return FAIL;
+				id =atoi(strtok_null_safe(line, delimeter));
+				type = atoi(strtok_null_safe(NULL,delimeter));
 				if ( s_id==id && s_type == type) {
-					xu   = atof(strtok(NULL,delimeter));
-					yu   = atof(strtok(NULL,delimeter));
-					zu   = atof(strtok(NULL,delimeter));
-					mux   = atof(strtok(NULL,delimeter));
-					muy   = atof(strtok(NULL,delimeter));
-					muz   = atof(strtok(NULL,delimeter));
+					xu   = atof(strtok_null_safe(NULL,delimeter));
+					yu   = atof(strtok_null_safe(NULL,delimeter));
+					zu   = atof(strtok_null_safe(NULL,delimeter));
+					mux   = atof(strtok_null_safe(NULL,delimeter));
+					muy   = atof(strtok_null_safe(NULL,delimeter));
+					muz   = atof(strtok_null_safe(NULL,delimeter));
 
 					stream->x[i] = xu;
 					stream->y[i] = yu;
@@ -499,15 +530,16 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 		else if (strncmp(s_atoms_vel,line,i_atoms_vel) ==0 ) {
 			for (i=0; i<n_atoms; i++){
 				read_lines(1,fp);
-				id =atoi(strtok(line, delimeter));
-				type = atoi(strtok(NULL,delimeter));
+				if (error_code == 1) return FAIL;
+				id =atoi(strtok_null_safe(line, delimeter));
+				type = atoi(strtok_null_safe(NULL,delimeter));
 				if ( s_id==id && s_type == type) {
-					xu   = atof(strtok(NULL,delimeter));
-					yu   = atof(strtok(NULL,delimeter));
-					zu   = atof(strtok(NULL,delimeter));
-					vx   = atof(strtok(NULL,delimeter));
-					vy   = atof(strtok(NULL,delimeter));
-					vz   = atof(strtok(NULL,delimeter));
+					xu   = atof(strtok_null_safe(NULL,delimeter));
+					yu   = atof(strtok_null_safe(NULL,delimeter));
+					zu   = atof(strtok_null_safe(NULL,delimeter));
+					vx   = atof(strtok_null_safe(NULL,delimeter));
+					vy   = atof(strtok_null_safe(NULL,delimeter));
+					vz   = atof(strtok_null_safe(NULL,delimeter));
 
 					stream->x[i] = xu;
 					stream->y[i] = yu;
@@ -523,18 +555,19 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 		else if (strncmp(s_atoms_all,line,i_atoms_all) ==0 ) {
 			for (i=0; i<n_atoms; i++){
 				read_lines(1,fp);
-				id =atoi(strtok(line, delimeter));
-				type = atoi(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+				id =atoi(strtok_null_safe(line, delimeter));
+				type = atoi(strtok_null_safe(NULL,delimeter));
 				if ( s_id==id && s_type == type) {
-					xu   = atof(strtok(NULL,delimeter));
-					yu   = atof(strtok(NULL,delimeter));
-					zu   = atof(strtok(NULL,delimeter));
-					mux   = atof(strtok(NULL,delimeter));
-					muy   = atof(strtok(NULL,delimeter));
-					muz   = atof(strtok(NULL,delimeter));
-					vx   = atof(strtok(NULL,delimeter));
-					vy   = atof(strtok(NULL,delimeter));
-					vz   = atof(strtok(NULL,delimeter));
+					xu   = atof(strtok_null_safe(NULL,delimeter));
+					yu   = atof(strtok_null_safe(NULL,delimeter));
+					zu   = atof(strtok_null_safe(NULL,delimeter));
+					mux   = atof(strtok_null_safe(NULL,delimeter));
+					muy   = atof(strtok_null_safe(NULL,delimeter));
+					muz   = atof(strtok_null_safe(NULL,delimeter));
+					vx   = atof(strtok_null_safe(NULL,delimeter));
+					vy   = atof(strtok_null_safe(NULL,delimeter));
+					vz   = atof(strtok_null_safe(NULL,delimeter));
 
 					stream->x[i] = xu;
 					stream->y[i] = yu;
@@ -553,25 +586,22 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 		else if (strncmp(s_atoms,line,i_atoms) ==0 ) {
 			for (i=0; i<n_atoms; i++){
 				read_lines(1,fp);
-				id =atoi(strtok(line, delimeter));
-				type = atoi(strtok(NULL,delimeter));
+			if (error_code == 1) return FAIL;
+				id =atoi(strtok_null_safe(line, delimeter));
+				type = atoi(strtok_null_safe(NULL,delimeter));
 				if ( s_id==id && s_type == type) {
-					xu   = atof(strtok(NULL,delimeter));
-					yu   = atof(strtok(NULL,delimeter));
-					zu   = atof(strtok(NULL,delimeter));
+					xu   = atof(strtok_null_safe(NULL,delimeter));
+					yu   = atof(strtok_null_safe(NULL,delimeter));
+					zu   = atof(strtok_null_safe(NULL,delimeter));
 					stream->x[i] = xu;
 					stream->y[i] = yu;
 					stream->z[i] = zu;
 					stream->atomType = 0;
 				}
-
 			}
-
 		}
-
 	}
 	return 0;
-
 }
 int malloc_stream( atomstream* stream, int nTime) 
 {
@@ -591,3 +621,5 @@ int free_stream( atomstream* stream)
 	free(&(stream->muy));
 	free(&(stream->muz));
 }
+#undef FAIL
+#undef SUCCESS

@@ -29,6 +29,7 @@
 #include <string.h>
 #include <math.h>
 #include "snapshot.h"
+#include <omp.h>
 /* #####   EXPORTED TYPE DEFINITIONS   ############################################## */
 //typedef struct {
 //	real R, I;
@@ -49,7 +50,11 @@ typedef struct {
 	real **F_qq2, *org_rho_q1;
 	real **F_s_qq2, **F_d_qq2, **org_rho_s_q1 , **org_rho_d_q1  ;
 	VecR3 *orgR, *rTrue; 
+	real *rho_q1;
+	real **rho_s_q1, **rho_d_q1;
+	real *rho_s_q1_temp;
 	Rank2R3 orgSumVR;
+	Rank2R3 sumVR_ct;
 	// VecR3 *orgVel; real *acfVel;
 	Rank2R3 *rrMSR2_VR;
 	VecR3 *rrMSR1_R;
@@ -134,45 +139,37 @@ for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_valu
  *  @param[in] n1,n2   n1 x n2 array size
  *  @param      t     type 
  */
-/* #####   EXPORTED FUNCTION DECLARATIONS   ######################################### */
-void Init_reciprocal_space(Snapshot * snap);
-
-void ZeroSpacetimeCorr ();
-void InitSpacetimeCorr ();
-void EvalOtherInformation ();
-void PrintSpacetimeCorr (FILE *fp);
-void EvalSpacetimeCorr (Snapshot * snap);
-void AllocArray();
-void Alloc_more();
-void AccumSpacetimeCorr ();
-
 /* #####   EXPORTED DATA TYPES   #################################################### */
+// local Data
+typedef struct {
+	TBuf *tBuf;
+	int first_run,flag_alloc;
+	Snapshot* snap;
+} MakeSqtClass;
+MakeSqtClass* classSqt;
+// global data
 real kVal, deltaT, rVal, g_Vol,mass;
 real L ;                                        /*!< \brief box length */
 int nPtls;
-
-
-TBuf *tBuf;
-
 /*!
  *  \brief  for Intermediate scattering function <rho(q,t)rho(-q,0)>
  */
-real **avF_qq2, *rho_q1, **valDqt, **valGammaQT ;
-real **avF_s_qq2, **avF_d_qq2, **rho_s_q1, **rho_d_q1;
-real *rho_s_q1_temp;
+real **avF_qq2,  **valDqt, **valGammaQT ;
+real **avF_s_qq2, **avF_d_qq2;
+
 
 real *factorDr, *radius;
 int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime;
-Rank2R3 sumVR_ct,subVR,sqVR;
+
 
 
 /*!
- *  \brief  for van Hove function
+ *  \brief  for van Hove function (globall
  */
 real *rrDt;
 real **avDrTable;
 /*!
- *  \brief  Accumulate and average value
+ *  \brief  Accumulate and average value ( globall)
  */
 real *rrMSR2_VR_Av_offdig;    
 real *rrMSR2_VR_Av_dig;
@@ -182,5 +179,21 @@ real *rrMSDAv;
 Rank2R3 *rrMSR2_VR_Av;
 
 
+/*!
+ *  \brief  openmp locker
+ */
+int nthreads, threadID;
+omp_lock_t write_lock;
+/* #####   EXPORTED FUNCTION DECLARATIONS   ######################################### */
+void Init_reciprocal_space(Snapshot * snap);
+
+void ZeroAvSpacetimeCorr ();
+void InitSpacetimeCorr (MakeSqtClass* );
+void EvalOtherInformation ();
+void PrintSpacetimeCorr (FILE *fp);
+void EvalSpacetimeCorr (MakeSqtClass*);
+void AllocArray(MakeSqtClass* );
+void Alloc_more(MakeSqtClass* );
+void AccumSpacetimeCorr (MakeSqtClass*); // __threadsafe__
 
 #endif
