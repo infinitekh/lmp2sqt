@@ -1,0 +1,10 @@
+NameList -- data
+kVal		0.0981748 
+deltaT		0.0600000 
+mass		1.00000 
+rVal		0.200000 
+limitCorrAv	14825 
+nCBuffer	450 
+nCSpatial	30 
+nCTime		450 
+----
