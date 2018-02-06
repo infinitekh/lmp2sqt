@@ -61,42 +61,51 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
 int  type[]    = { 1,   1,  1,  0 };
 int  scail[]    = { 1,   1,  1,  0 };
-	char *header[] = {
-		"full-cur-long"  	 ,                        // 0
-		"full-cur-trans" 	 ,                        // 1
-		"full-mag-long"  	 ,                        // 2
-		"full-mag-trans" 	 ,                        // 3
-		"full-density"   	 ,                        // 4
-		"self-cur-long"			,                       // 5
-		"self-cur-trans"		,                       // 6
-		"self-mag-long"			,                       // 7
-		"self-mag-trans"		,                       // 8
-		"self-density"			,                       // 9
-		"cross-cur-long"		,                       // 10
-		"cross-cur-trans"		,                       // 11
-		"cross-mag-long"		,                       // 12
-		"cross-mag-trans"		,                       // 13
-		"cross-density" 		,                       // 14
-		"self-vanHove"                              // 15
+char *header[] = {
+		"full-density"   	 ,                        // 0
+		"self-density"			,                       // 1
+		"cross-density" 		,                       // 2
+		"self-vanHove"                              // 3
 		};
-/* char *header[] = {"cur-long", "cur-trans", "mag-long", "mag-trans","density", "vanHove-self",
- * 	"self-long", "self-trans", "self",
- * 	"cross-long", "cross-trans", "cross"};
- */
 int header_flag_calc[] = {
-	0,0,1,1,1,
-	0,0,1,1,1,
-	0,0,1,1,1,
+	1,
+	1,
+	1,
 	1 };
 int header_flag_more[] = {
-	0,0,1,1,1,
-	0,0,1,1,1,
-	0,0,1,1,1,
+	1,
+	1,
+	1,
 	0 };
-/* char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self","self-long", "self-trans", "self"},
- */
-/*  char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"},
-		 *txtCorr = "space-time corr";
+
+/* char *header[] = {
+ * 		"full-cur-long"  	 ,                        // 0
+ * 		"full-cur-trans" 	 ,                        // 1
+ * 		"full-mag-long"  	 ,                        // 2
+ * 		"full-mag-trans" 	 ,                        // 3
+ * 		"full-density"   	 ,                        // 4
+ * 		"self-cur-long"			,                       // 5
+ * 		"self-cur-trans"		,                       // 6
+ * 		"self-mag-long"			,                       // 7
+ * 		"self-mag-trans"		,                       // 8
+ * 		"self-density"			,                       // 9
+ * 		"cross-cur-long"		,                       // 10
+ * 		"cross-cur-trans"		,                       // 11
+ * 		"cross-mag-long"		,                       // 12
+ * 		"cross-mag-trans"		,                       // 13
+ * 		"cross-density" 		,                       // 14
+ * 		"self-vanHove"                              // 15
+ * 		};
+ * int header_flag_calc[] = {
+ * 	0,0,1,1,1,
+ * 	0,0,1,1,1,
+ * 	0,0,1,1,1,
+ * 	1 };
+ * int header_flag_more[] = {
+ * 	0,0,1,1,1,
+ * 	0,0,1,1,1,
+ * 	0,0,1,1,1,
+ * 	0 };
  */
 int nDataTypes = sizeof(header)/sizeof(char*);
 void PrintHelp ( char *pName,int);
