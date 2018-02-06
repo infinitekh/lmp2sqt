@@ -183,7 +183,8 @@ Rank2R3 *rrMSR2_VR_Av;
  *  \brief  openmp locker
  */
 int nthreads, threadID;
-omp_lock_t write_lock,read_lock;
+/* omp_lock_t write_lock,read_lock;
+ */
 /* #####   EXPORTED FUNCTION DECLARATIONS   ######################################### */
 void Init_reciprocal_space(Snapshot*);
 

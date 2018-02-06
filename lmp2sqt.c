@@ -126,8 +126,9 @@ int main(int argc, char** argv) {
 	long int num_data [argc+3];
 	limitCorrAv = 0;
 
-	omp_init_lock(&write_lock);
-	omp_init_lock(&read_lock);
+/* 	omp_init_lock(&write_lock);
+ * 	omp_init_lock(&read_lock);
+ */
 	
 
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
@@ -182,9 +183,11 @@ int main(int argc, char** argv) {
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
 		if (files_on[opt_num] == true) num_files ++;
 	}
-	nthreads = omp_get_max_threads();
-	nthreads = (nthreads< num_files)? nthreads:num_files;
+/* 	nthreads = omp_get_max_threads();
+ * 	nthreads = (nthreads< num_files)? nthreads:num_files;
+ */
 	nthreads = 1;
+	int threadID = 0;
 	
 	real * r_done_works;
 	int * i_done_works;
@@ -199,38 +202,44 @@ int main(int argc, char** argv) {
 	}
 
 
-//#pragma omp parallel for    schedule(dynamic)
+//#pragma acc parallel loop    schedule(dynamic)
 	for( opt_num = 1;   opt_num < argc; opt_num++)  {
 		if (files_on[opt_num] == false) continue;
 		strcpy( filename,argv[opt_num]);
 		FILE* fp = fopen( filename ,"r");
 		Snapshot* snap, *firstSnap;
-		int threadID = omp_get_thread_num();
+/* 		int threadID = omp_get_thread_num();
+ */
 		MakeSqtClass* cl_sqt = & classSqt[threadID];
 		InitSpacetimeCorr(cl_sqt);
 		/*!
 		 *  \brief  Start Calculation.
 		 */
-		omp_set_lock(&read_lock);
+/* 		omp_set_lock(&read_lock);
+ */
 		rewind(fp);  
 			firstSnap = read_dump(fp);
 		Init_reciprocal_space(firstSnap);
 		rewind(fp);
-		omp_unset_lock(&read_lock);
+/* 		omp_unset_lock(&read_lock);
+ */
 		fprintf(stderr,"FULL_SNAPS = %5d\n",full_n_snaps);
 		for (int ns = 0 ; ns < num_data[opt_num] ; ns++ ) {
 			/* 		while(1) {}
 			*/
-			omp_set_lock(&read_lock);
+/* 			omp_set_lock(&read_lock);
+ */
 			snap =	read_dump(fp);
-			omp_unset_lock(&read_lock);
+/* 			omp_unset_lock(&read_lock);
+ */
 			if (snap == NULL)
 				break;
 			cl_sqt->snap = snap;
 			EvalSpacetimeCorr(cl_sqt);
 
 			free_Snapshot(snap);
-#pragma omp atomic
+/* #pragma omp atomic
+ */
 			full_n_snaps_index++;
 
 			i_done_works[threadID]++;
@@ -266,8 +275,10 @@ int main(int argc, char** argv) {
 
 	}
 
-	omp_destroy_lock(&write_lock);
-	omp_destroy_lock(&read_lock);
+/* 	omp_destroy_lock(&write_lock);
+ */
+/* 	omp_destroy_lock(&read_lock);
+ */
 	return 0;
 }
 
@@ -281,7 +292,8 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 	TBuf* pt;
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		if (tBuf[nb].count == nCTime) {
-			omp_set_lock(&write_lock);
+/* 			omp_set_lock(&write_lock);
+ */
 			// check!! that  data is full
 			// S(q,t), M(q,t) part
 			pt = &tBuf[nb];
@@ -310,7 +322,8 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 			if (countCorrAv == limitCorrAv) {
 				PrintSpacetimeCorr (stdout);
 			}
-			omp_unset_lock(&write_lock);
+/* 			omp_unset_lock(&write_lock);
+ */
 		} //   if tBuf[nb].count is full
 	}   // for all buffer
 }
@@ -321,12 +334,14 @@ void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 	 */
 {
 	if (cl_sqt->flag_alloc == 0 ) {
-		omp_set_lock(&write_lock);
+/* 		omp_set_lock(&write_lock);
+ */
 		AllocArray(cl_sqt);
 		cl_sqt->flag_alloc = 1;
 		flag_global_alloc =1;
 		AllocMemCheck();
-		omp_unset_lock(&write_lock);
+/* 		omp_unset_lock(&write_lock);
+ */
 	}
 	if (nCBuffer > nCTime) {
 		fputs("Error nCBuffer> nCTime\n", stderr);
@@ -406,7 +421,7 @@ void EvalOtherInformation ()
 void prePrintProcess () 
 {
 	real scale_factor = 1./(3.*nPtls*countCorrAv);
-#pragma omp parallel for
+#pragma acc parallel loop
 	for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
 		for (int nt = 0; nt < nCTime; nt ++){
 			avF_qq2[nr][nt] *= scale_factor;
@@ -424,7 +439,7 @@ void prePrintProcess ()
 	real factor_dig = 1./(3.*countCorrAv * g_Vol);
 	real factor_offdig = 1./(6.*countCorrAv * g_Vol);
 
-#pragma omp parallel for
+#pragma acc parallel loop
 	for (int nt = 1; nt < nCTime; nt ++) {
 		rrMSDAv[nt] *= scale_factor;
 		rrMQDAv[nt] *= scale_factor;
@@ -714,7 +729,7 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 		v[0]  =  col_i->vx;  v[1] = col_i->vy;  v[2]  = col_i->vz;
 		mu[0] = col_i->mux; mu[1] = col_i->muy; mu[2] = col_i->muz;
 		// 
-#pragma omp parallel  for 
+#pragma acc parallel loop 
 		for (int k = 0; k < N_AXIS; k ++) {          
 			real b,c,s,c0,c1,s1,c2,s2;
 			coordi3* c3=&coordi_list[k];
@@ -880,7 +895,7 @@ void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 	real **	rho_s_q1  = tBuf->rho_s_q1 ;
 	real **	rho_d_q1 = tBuf->rho_d_q1;
 	for (int axis_b = 0; axis_b < N_AXIS; axis_b ++) { // 3 loop
-#pragma omp parallel for 
+#pragma acc parallel loop 
 		for (int nk = 0; nk < nCSpatial; nk ++) {
 			const int avMarker = nk*AVDOF;
 			const int marker = (nCSpatial* DOF)*axis_b + DOF*nk;
@@ -971,12 +986,14 @@ void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 	g_Vol  = L*L*L;
 	nPtls = snap->n_atoms;
 	if (cl_sqt->flag_alloc_more ==0 ) {
-		omp_set_lock(&write_lock);
+/* 		omp_set_lock(&write_lock);
+ */
 		Alloc_more(cl_sqt);
 		cl_sqt->flag_alloc_more =1;
 		flag_global_alloc_more = 1;
 		AllocMemCheck ();
-		omp_unset_lock(&write_lock);
+/* 		omp_unset_lock(&write_lock);
+ */
 	}
 
 	kVal = 2.*M_PI / L;
