@@ -79,8 +79,8 @@ NameList nameList[] = {
 	NameI   (nCTime)         // number of time seq
 };
 typedef real coordi3[3];
-#define OOS2 (1./sqrt(2.))
-#define OOS3 (1./sqrt(3.))
+#define OOS2 (0.7071067811865475)
+#define OOS3 (0.5773502691896258)
 coordi3 coordi_list[13]= {
 	{ +1,+0,+0},
 	{ +0,+1,+0},
