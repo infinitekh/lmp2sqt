@@ -21,7 +21,6 @@
 
 #ifndef __lmp2sqt_h__ 
 #define __lmp2sqt_h__ 
-
 /* #####   HEADER FILE INCLUDES   ################################################### */
 #include "common.h"
 #include <stdio.h>
@@ -31,6 +30,7 @@
 #include "snapshot.h"
 #include <omp.h>
 /* #####   EXPORTED TYPE DEFINITIONS   ############################################## */
+#define FLAG_CU 1
 //typedef struct {
 //	real R, I;
 //} Cmplx;
@@ -52,7 +52,6 @@ typedef struct {
 	VecR3 *orgR, *rTrue; 
 	real *rho_q1;
 	real **rho_s_q1, **rho_d_q1;
-	real *rho_s_q1_temp;
 	Rank2R3 orgSumVR;
 	Rank2R3 sumVR_ct;
 	// VecR3 *orgVel; real *acfVel;
@@ -118,14 +117,26 @@ enum {VXC =0, VXS, VYC, VYS, VZC, VZS,
 void* unused_pointer;
 int ununused_value;
 long long int ll_mem_size=0;
+long long int ll_vmem_size=0;
 int ErrorAllocMem=0; 
-#define AllocMem(a, n, t)                       \
-	a = (t *) malloc ((n) * sizeof (t));      \
-	if (a == NULL ) ErrorAllocMem=1;          \
-  ll_mem_size += (long long)n* sizeof(t);
+
+#define AllocMem_dev(a, n, t)                     				  \
+	HANDLE_ERROR( cudaMalloc( (void**) &a, ((n) * sizeof (t))));\
+ll_vmem_size += (long long)n* sizeof(t);
+
+#define AllocMemPitch_dev(a, p, n1, n2, t)                    \
+	HANDLE_ERROR( cudaMallocPitch( ((void**) &a),(size_t*) (&p), 			\
+				((n1) * sizeof (t)), (n2) )    );											  	\
+ll_vmem_size += (long long)p*n2* sizeof(t);
+
+#define AllocMem(a, n, t)                   						    \
+	a = (t *) malloc ((n) * sizeof (t));  								    \
+if (a == NULL ) ErrorAllocMem=1;        								  \
+ll_mem_size += (long long)n* sizeof(t);
+
 #define AllocMem2(a, n1, n2, t)                        \
 	AllocMem (a, n1, t *);                               \
-AllocMem (a[0], (n1) * (n2), t);                     \
+AllocMem (a[0], ((n1) * (n2)), t);                     \
 for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_value] = a[ununused_value - 1] + n2;
 /*!
  *  \def AllocMem(a, n,  t)  
@@ -141,12 +152,35 @@ for (ununused_value = 1; ununused_value < n1; ununused_value ++) a[ununused_valu
  */
 /* #####   EXPORTED DATA TYPES   #################################################### */
 // local Data
+int nthreads;
 typedef struct {
+	int  id;
 	TBuf *tBuf;
+	real *rho_s_q1_host;
+/*!
+ *  \brief  gpu memory temp( limited)
+ */
+	real* F_qq2_sub_dev;
+	real* F_qq2_sub_host;
+
+	size_t pitch1_host, pitch2_host;
+	size_t pitch1, pitch2;
+	size_t height1, height2;
+	real *rho_q1_dev;
+	real *org_rho_q1_dev;
+
+	real* rho_s_q1_dev;
+	real* org_rho_s_q1_dev;
+	real* rho_d_q1_dev;
+	real* org_rho_d_q1_dev;
+
+	real* F_s_qq2_sub_dev;
+	real* F_d_qq2_sub_dev;
+
 	int flag_alloc,flag_alloc_more;
 	Snapshot* snap;
-} MakeSqtClass;
-MakeSqtClass* classSqt;
+} MakeSqtThread;
+MakeSqtThread* threadSqt;
 // global data
 real kVal, deltaT, rVal, g_Vol,mass;
 real L ;                                        /*!< \brief box length */
@@ -160,7 +194,6 @@ real **avF_s_qq2, **avF_d_qq2;
 
 real *factorDr, *radius;
 int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime;
-
 
 
 /*!
@@ -182,20 +215,19 @@ Rank2R3 *rrMSR2_VR_Av;
 /*!
  *  \brief  openmp locker
  */
-int nthreads, threadID;
 /* omp_lock_t write_lock,read_lock;
  */
 /* #####   EXPORTED FUNCTION DECLARATIONS   ######################################### */
 void Init_reciprocal_space(Snapshot*);
 
 void ZeroAvSpacetimeCorr ();
-void InitSpacetimeCorr (MakeSqtClass* );
+void InitSpacetimeCorr (MakeSqtThread* );
 void EvalOtherInformation ();
 void PrintSpacetimeCorr (FILE *fp);
-void EvalSpacetimeCorr (MakeSqtClass*);
-void AllocArray(MakeSqtClass* );
+void EvalSpacetimeCorr (MakeSqtThread*);
+void AllocArray(MakeSqtThread* );
 void AllocMemCheck ();
-void Alloc_more(MakeSqtClass* );
-void AccumSpacetimeCorr (MakeSqtClass*); // __threadsafe__
+void Alloc_more(MakeSqtThread* );
+void AccumSpacetimeCorr (MakeSqtThread*); // __threadsafe__
 
 #endif

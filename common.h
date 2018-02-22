@@ -19,7 +19,7 @@
 #include <stdio.h>
 
 typedef double real;
-char *txtCorr;
+extern char *txtCorr;
 int fwrite_matrix( FILE *fout, real **m, int xsize, int ysize, real *rt, real *ct);
 
 

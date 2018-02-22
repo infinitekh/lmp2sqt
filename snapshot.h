@@ -31,7 +31,7 @@ typedef long int bigint;
 enum{ 
 	ERR_NONE
 };
-int error_code;
+extern int error_code;
 
 static char line[MAXLINE];
 #define ATOM_VEL 0x1
