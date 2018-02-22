@@ -405,7 +405,7 @@ void EvalOtherInformation ()
 
 void prePrintProcess () 
 {
-	real scale_factor = 1./(3.*nPtls*countCorrAv);
+	real scale_factor = 1./(13.*nPtls*countCorrAv);
 #pragma omp parallel for
 	for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
 		for (int nt = 0; nt < nCTime; nt ++){
