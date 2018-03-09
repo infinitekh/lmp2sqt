@@ -105,6 +105,7 @@ int GetNameList (int argc, char **argv);
 int Number_call_Print =0;
 int flag_global_alloc =0 ;
 int flag_global_alloc_more =0 ;
+void PrintSpacetimeCorr_binary ( FILE*);
 
 int main(int argc, char** argv) {
 	/*!
@@ -308,7 +309,13 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 			pt->count = 0;
 			++ countCorrAv;
 			if (countCorrAv == limitCorrAv) {
-				PrintSpacetimeCorr (stdout);
+				FILE* fout = fopen( "output.binary", "w+");
+				FILE* fout_text = fopen( "output.txt", "w+");
+				PrintSpacetimeCorr (fout_text);
+				PrintSpacetimeCorr_binary( fout);
+				fclose(fout);
+				fclose(fout_text);
+				ZeroAvSpacetimeCorr ();  //FIXIT   아무의미없음 출력에서 교체합시다. 
 			}
 			omp_unset_lock(&write_lock);
 		} //   if tBuf[nb].count is full
@@ -447,7 +454,6 @@ void prePrintProcess ()
 	}
 }
 
-
 void PrintSpacetimeCorr (FILE *fp)
 	/*!
 	 *  \brief  결과를 출력하는 함수
@@ -455,8 +461,8 @@ void PrintSpacetimeCorr (FILE *fp)
 	 *  \param  fp output file descriptor
 	 */
 {
-	prePrintProcess ();
 
+	prePrintProcess ();
 	extern real kVal;
 	int  nType,  k2, nr;
 	Number_call_Print ++;
@@ -466,7 +472,7 @@ void PrintSpacetimeCorr (FILE *fp)
 		"self-density"			,                       // 1
 		"cross-density" 		,                       // 2
 		"self-vanHove"                              // 3
-		};
+	};
 	fprintf (fp, "%s\n",txtCorr);
 	//for (nType = 0; k < 3; k ++) {
 	for (k2 = 0; k2 < sizeof(header)/ sizeof(char*); k2 ++) {
@@ -541,6 +547,129 @@ void PrintSpacetimeCorr (FILE *fp)
 	void PrintEtc();
 	PrintEtc ();
 }
+void PrintSpacetimeCorr_binary (FILE *fp)
+	/*!
+	 *  \brief  결과를 출력하는 함수
+	 *
+	 *  \param  fp output file descriptor
+	 */
+{
+
+	extern real kVal;
+	int  nType,  k2, nr;
+//	Number_call_Print ++;
+	//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
+	char *header[] = {
+		"full-density"   	 ,                        // 0
+		"self-density"			,                       // 1
+		"cross-density" 		,                       // 2
+		"self-vanHove"                              // 3
+	};
+	int nTypes = sizeof(header)/ sizeof(char*);
+	fwrite (txtCorr,sizeof(char),strlen(txtCorr),fp);
+	fwrite (&nTypes,sizeof(int) ,1,fp);
+//	fwrite (fp, "%s\n",txtCorr);
+	//for (nType = 0; k < 3; k ++) {
+	for (k2 = 0; k2 < nTypes; k2 ++) {
+		/* 		fprintf (fp, "%s", header[nType]);
+		 * 		for (j = 0; j < nCSpatial; j ++)
+		 * 			fprintf (fp, " %7.3f", kVal*(j+1));
+		 * 		fprintf (fp, "\n");
+		 */
+
+		//    EvalOtherInformation ();
+		real col2 =  kVal; 
+		real col3 = 1.0*deltaT; 
+		real col4 = rVal; 
+		fwrite(header[k2],sizeof(char), strlen(header[k2]), fp);
+
+		fwrite(&col2, sizeof(real),1,fp);
+		fwrite(&col3, sizeof(real),1,fp);
+		fwrite(&col4, sizeof(real),1,fp);
+
+/* 		fprintf (fp, "# %s %7.3f %7.3f %7.3f\n", header[k2] , kVal, 1.0*deltaT, rVal);
+ */
+		switch ( k2) {
+			case 0: 
+				/*!-----------------------------------------------------------------------------
+				 *  avF_qq2[AVDOF*i+nType][k] -> F(q_i,t_k) 
+				 *-----------------------------------------------------------------------------*/
+				nType= 0;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nk = 0; nk < nCSpatial; nk ++){
+						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+					}
+/* 					for (int nk = 0; nk < nCSpatial; nk ++){
+ * 						fprintf (fp, " %8.4e", avF_qq2[AVDOF * nk + nType][nt]);
+ * 					}
+ * 					fprintf (fp, "\n");
+ */
+				} 
+				break;
+/*-----------------------------------------------------------------------------
+ *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) 
+ *-----------------------------------------------------------------------------*/
+			case 1: 
+				nType =  0;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nk = 0; nk < nCSpatial; nk ++){
+						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+					}
+/* 					for (int nr = 0; nr < nCSpatial; nr ++){
+ * 						fprintf (fp, " %8.4e", avF_s_qq2[AVDOF * nr + nType][nt]);
+ * 					}
+ * 					fprintf (fp, "\n");
+ */
+				} 
+				break;
+/*-----------------------------------------------------------------------------
+ *  avF_d_qq2[3*i+nType][j] -> F_d(q_i,t_j) 
+ *  magnetic
+ *-----------------------------------------------------------------------------*/
+			case 2:
+				nType = 0;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nk = 0; nk < nCSpatial; nk ++){
+						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+					}
+/* 					for (int nr = 0; nr < nCSpatial; nr ++){
+ * 						fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
+ * 					}
+ * 					fprintf (fp, "\n");
+ */
+				} 
+				break;
+			case 3: 
+				//        fprintf (fp, "#van Hove function\n");
+
+				for (int nt = 0; nt < nCTime; nt ++) {
+					for (int nk = 0; nk < nCSpatial; nk ++){
+						fwrite( &(avDrTable[nr][nt]), sizeof(real),1,fp);
+					}
+/* 					for ( nr=0; nr<nCSpatial; nr++)  {
+ * 						fprintf (fp, " %8.4e", avDrTable[nr][nt] );
+ * 					}
+ * 					fprintf (fp, "\n");
+ */
+				}
+				break;
+		}
+/* 		fprintf (fp, "\n");
+ */
+	}
+/* 	void PrintEtc();
+ * 	PrintEtc ();
+ */
+}
 void PrintEtc () {
 
 	//  char filename1[100] ="Dq00.info" ;
@@ -593,8 +722,8 @@ void PrintEtc () {
 	FILE* fp_SSF = fopen(filename3,"w");
 	for (int nr = 0; nr < nCSpatial; nr ++) {
 		fprintf (fp_SSF, "%8.4f" " %8.4e""\n" , (nr+1)*kVal , 
-//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-				avF_qq2[(AVDOF*nr)+0][0]);
+				//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
+						avF_qq2[(AVDOF*nr)+0][0]);
 	}
 	fclose(fp_SSF);
 
@@ -649,7 +778,6 @@ void PrintEtc () {
 	 * 	fclose(fp_Gr);
 	 */
 
-	ZeroAvSpacetimeCorr ();  //FIXIT   아무의미없음 출력에서 교체합시다. 
 }
 
 void ZeroOneTimeCorr(MakeSqtClass* cl_sqt)
