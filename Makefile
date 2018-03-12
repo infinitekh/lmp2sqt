@@ -13,3 +13,7 @@ analysis.gdb:analysis.c snapshot.c common.c
 	gcc analysis.c snapshot.c common.c -lm -ggdb -o $@
 lmp2sqt.simple.gdb:lmp2sqt.c snapshot.c common.c
 	gcc lmp2sqt.c snapshot.c common.c -lm -fopenmp -ggdb -o $@
+
+install: analysis.out lmp2sqt.simple.out analysis_binary.out
+	cp analysis.out lmp2sqt.simple.out analysis_binary.out /home/kh/bin/
+
