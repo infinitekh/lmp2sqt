@@ -619,7 +619,7 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 					 * 			fprintf (fp, "%7.3f", deltaT);
 					 */
 					for (int nk = 0; nk < nCSpatial; nk ++){
-						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+						fwrite( &(avF_s_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 					}
 /* 					for (int nr = 0; nr < nCSpatial; nr ++){
  * 						fprintf (fp, " %8.4e", avF_s_qq2[AVDOF * nr + nType][nt]);
@@ -639,7 +639,7 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 					 * 			fprintf (fp, "%7.3f", deltaT);
 					 */
 					for (int nk = 0; nk < nCSpatial; nk ++){
-						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+						fwrite( &(avF_d_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 					}
 /* 					for (int nr = 0; nr < nCSpatial; nr ++){
  * 						fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
