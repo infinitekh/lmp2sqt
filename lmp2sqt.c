@@ -412,7 +412,8 @@ void EvalOtherInformation ()
 
 void prePrintProcess () 
 {
-	real scale_factor = 1./(13.*nPtls*countCorrAv);
+	size_t n_scale = sizeof(coordi_list)/sizeof(coordi3);
+	real scale_factor = 1./(n_scale*nPtls*countCorrAv);
 #pragma omp parallel for
 	for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
 		for (int nt = 0; nt < nCTime; nt ++){
