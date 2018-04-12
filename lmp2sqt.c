@@ -81,10 +81,10 @@ NameList nameList[] = {
 typedef real coordi3[3];
 #define OOS2 (0.7071067811865475)
 #define OOS3 (0.5773502691896258)
-coordi3 coordi_list[13]= {
+coordi3 coordi_list[]= {
 	{ +1,+0,+0},
 	{ +0,+1,+0},
-	{ +0,+0,+1}, // basic
+	{ +0,+0,+1}   /*    , // basic
 	{ +OOS2,+OOS2,+0},
 	{ +OOS2,-OOS2,+0},
 	{ +OOS2,+0,+OOS2},
@@ -94,7 +94,7 @@ coordi3 coordi_list[13]= {
 	{ +OOS3,+OOS3,+OOS3},
 	{ +OOS3,+OOS3,-OOS3},
 	{ +OOS3,-OOS3,+OOS3},
-	{ +OOS3,-OOS3,-OOS3} // 3axis combination
+	{ +OOS3,-OOS3,-OOS3} // 3axis combination */ 
 };
 
 

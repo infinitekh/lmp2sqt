@@ -94,7 +94,8 @@ ALLOC(VecR3);
 		x = strtod (bp, &bp);                \
 	}
 #define TAG 1
-#define N_AXIS  (3+4+6)                                /*!< \brief 3d - > 3 */
+//#define N_AXIS  (3+4+6)                                /*!< \brief 3d - > 3 */
+#define N_AXIS  (3)                                /*!< \brief 3d - > 3 */
 #define DOF  (2*(1))                        /*!< \brief 2x(density+velocity+magnet) */
 #define FDOF (N_AXIS*DOF)                          /*!< \brief memory for correlator */
 #define AVDOF  1                                 //!< (vel,mag)*(long,trans) + density
