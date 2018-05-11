@@ -17,7 +17,6 @@
 
 #include "lmp2sqt.h"
 #include "snapshot.h"
-
 #include <assert.h>
 
 #include<stdio.h>
