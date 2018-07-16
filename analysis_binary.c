@@ -133,13 +133,14 @@ extern char* txtCorr;
 /*!
  *  \brief  important 
  */
+long int g_weight =0;
 real **corrSum, **corrSumSq, **corrSumErr,
 		 **Fqt,
 		 **Dqt,**Hqt,**Fqt1,damp, 
 		 **GammaQT, tMax, w,x, qVal, qVal2;
 Cmplx *work;
 real valGamma, valDq, valSq, Fq0;
-int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT;
+int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT, lT;
 real fFqtUnderLimit= exp(-2.5);
 char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 FILE *input, *output;
@@ -482,6 +483,62 @@ void import_settings(char* inputFilename)
 	//	}
 
 }
+void load_raw_data_a_pack(real* rbuffer, int weight)
+{
+	//		if ( NULL == (pSnap = read_dump (input ) )) break;
+	int suc_count = 0, full_count = strlen(txtCorr) ;
+	// To reach end of file, break!!
+	suc_count = fread (bp,sizeof(char) ,full_count,input);
+	if ( full_count != suc_count)  return;
+	int nTypes;
+
+	if (! strncmp (bp, txtCorr, strlen (txtCorr))) {
+
+		fread (&nTypes,sizeof(int) ,1,input);
+		for ( j =0; j < nTypes; j++) {
+			int tmpint = strlen(header[j]);
+			real col2 ; 
+			real col3 ; 
+			real col4 ; 
+
+			/* 				char str_temp[100] = "# ";
+			 * 				strncpy(str_temp +2 , header[j], strlen(header[j]));
+			 */
+			char str_temp[100];
+			size_t strlength = strlen(header[j]);
+			fread(str_temp, sizeof(char), strlength, input);
+			str_temp[strlength]='\0';
+			fread(&col2, sizeof(real),1,input);
+			fread(&col3, sizeof(real),1,input);
+			fread(&col4, sizeof(real),1,input);
+
+			int ret_cmp = strncmp (header[j], str_temp,  strlen (header[j]));
+#ifndef NDEBUG
+			printf( "str_temp : %s\n"
+					"col2 : %f\n"
+					"col3 : %f\n"
+					"col4 : %f\n", str_temp,col2,col3,col4);
+			printf("ret_cmp %d, %s -- %s   %d\n", ret_cmp,
+					header[j],str_temp,(int)strlen(str_temp));
+
+#endif
+
+			// header types check(not completed)
+			if ( !ret_cmp )  {
+				fread(rbuffer, sizeof(real), (nCTime*nCSpatial), input);
+				for ( n =0; n<nCTime; n ++) {
+					//						bp = fgets (buff, BUFF_LEN, input);
+					for ( k = 0; k < nCSpatial; k += 1 ) {
+						w = weight*rbuffer[ n*nCSpatial + k ]; // transpose
+						corrSum[j][k * nCTime + n] += w;
+						corrSumSq[j][k * nCTime + n] += Sqr(w);
+					}
+				}
+			}
+		}
+		g_weight +=weight;
+	}
+}
 void load_raw_data()
 {
 	real* rbuffer = alloc_real(nCSpatial * nCTime);
@@ -492,6 +549,7 @@ void load_raw_data()
 	nSet =0;
 	while (1) {
 		//		if ( NULL == (pSnap = read_dump (input ) )) break;
+
 		int suc_count = 0, full_count = strlen(txtCorr) ;
 		// To reach end of file, break!!
 		suc_count = fread (bp,sizeof(char) ,full_count,input);
@@ -618,14 +676,15 @@ void do_not_fourier ()
 #define Xlogp1 (log(corrSum[j][nT]) )
 #define Xlog   (log(corrSum[j][cT]) )
 				cT = k*nCTime;
-				nnT = cT+2; nT = cT+1;  //Forward Records
-				Fqt1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-				GammaQT[j] [cT] =   ( (-Xlogp2+4.*Xlogp1 -3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-				Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
-				Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
-
-
-				for (cT= k*nCTime+1; cT < (k+1)*nCTime-1; cT++) {
+				lT = (k+1)*nCTime-1; // biggest time 
+				{
+					nnT = cT+2; nT = cT+1;  //Forward Records
+					Fqt1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (-Xlogp2+4.*Xlogp1 -3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+				}
+				for (cT= k*nCTime+1; cT < lT; cT++) {
 					nT = cT+1;   //Forward Records
 					pT = cT-1;   //Backward Records 
 
@@ -638,16 +697,19 @@ void do_not_fourier ()
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 				}
-				Fqt1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
-				GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
-				Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
-				Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+				cT = lT;
+				{
+					Fqt1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 
-				ppT = cT-2; pT=cT -1;
-				Fqt1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-				GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-				Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
-				Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+					ppT = cT-2; pT=cT -1;
+					Fqt1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
+					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+				}
 
 				cT = cT < k*nCTime +NValDiff  ? cT: k*nCTime+NValDiff;
 				fprintf(output, "%lf %le %le %le %le \n", qVal, 

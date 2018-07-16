@@ -49,16 +49,17 @@
 typedef struct {
 	real **F_qq2, *org_rho_q1;
 	real **F_s_qq2, **F_d_qq2, **org_rho_s_q1 , **org_rho_d_q1  ;
-	VecR3 *orgR, *rTrue; 
-	real *rho_q1;
+	VecR3 *orgR, *rTrue, *orgV, *orgMu; real *rho_q1;
 	real **rho_s_q1, **rho_d_q1;
 	real *rho_s_q1_temp;
 	Rank2R3 orgSumVR;
 	Rank2R3 sumVR_ct;
+	real *rrCvv, *rrCmm; real *rrCvcmvcm;
 	// VecR3 *orgVel; real *acfVel;
 	Rank2R3 *rrMSR2_VR;
 	VecR3 *rrMSR1_R;
 	real *rrMSD;
+	real *rrMSDCM;
 	real *rrMQD;
 	int **DrTable;
 	int count;
@@ -177,6 +178,10 @@ real *rrMSR2_VR_Av_dig;
 VecR3 *rrMSR1_R_Av;
 real *rrMQDAv;
 real *rrMSDAv;
+real *rrMSDCMAv;
+real *rrCvvAv;
+real *rrCvcmvcmAv;
+real *rrCmmAv;
 Rank2R3 *rrMSR2_VR_Av;
 
 
@@ -191,6 +196,7 @@ void Init_reciprocal_space(Snapshot*);
 void ZeroAvSpacetimeCorr ();
 void InitSpacetimeCorr (MakeSqtClass* );
 void EvalOtherInformation ();
+void PrintProcess ( MakeSqtClass* );
 void PrintSpacetimeCorr (FILE *fp);
 void EvalSpacetimeCorr (MakeSqtClass*);
 void AllocArray(MakeSqtClass* );
