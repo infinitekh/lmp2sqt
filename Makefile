@@ -1,6 +1,6 @@
 CC=gcc
 MAJOR = 1
-MINOR = 3
+MINOR = 4
 BUILD = $(shell date +"%y%m%d.%H%M")
 VERSIONA = "\"$(MAJOR).$(MINOR).$(BUILD)\""
 VERSION = "$(MAJOR).$(MINOR).$(BUILD)"
