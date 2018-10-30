@@ -5,9 +5,9 @@
  *
  *    Description:  
  *
- *        Version:  0.1 (Full Dqt)
+ *        Version:  1.2 (Full Dqt)
  *        Created:  2018년 03월 06일 (화) 오후 07시 02분 42초
- *       Revision:  none
+ *       Revision:  2018년 09월 18일 (화) 오후 03시 40분 10초
  *       Compiler:  gcc
  *
  *         Author:  Ph.D. Candidate KIM Hyeok (kh), ekh0324@gmail.com
@@ -123,7 +123,7 @@ int omegaMax,doFourier,doWindow;
 int nData,nCSpatial,nSet,nSetSkip,
 		nv, nCTime, NValDiff;
 real deltaT,deltaTCorr,kVal,kVal2;
-void Print_R2_datum ( FILE*, real*);
+void Print_R2_data ( FILE*, real*);
 
 static int verbose_flag;
 extern char* txtCorr;
@@ -135,13 +135,13 @@ extern char* txtCorr;
  */
 long int g_weight =0;
 real **corrSum, **corrSumSq, **corrSumErr,
-		 **Fqt,
-		 **Dqt,**Hqt,**Fqt1,damp, 
+		 **Fqt, **Dqt,**Hqt,**Fqt1,damp, 
 		 **GammaQT, tMax, w,x, qVal, qVal2;
 Cmplx *work;
 real valGamma, valDq, valSq, Fq0;
 int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT, lT;
 real fFqtUnderLimit= exp(-2.5);
+int flag_ul;
 char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
 FILE *input, *output;
 Snapshot* pSnap;
@@ -203,7 +203,7 @@ int main ( int argc, char **argv)
 
 	print_output () ;
 }
-void Print_R2_datum ( FILE* fp, real* datas)
+void Print_R2_data ( FILE* fp, real* datas)
 {
 	real x; int nr, n ;
 	fprintf(fp,"#%d", nCSpatial);
@@ -237,6 +237,7 @@ void PrintHelp ( char *pName, int linenumber)
 			"\t--window -w  : do windows \n"
 			"\t--nskip -s (with option int): Skip early data\n"
 			"\t--ndiff -d (with option int): \n"
+			"\t--ulimit -r (with option float:default->exp(-2.5)): \n"
 			"\t--help -h    : usage of this function\n"
 			"\t--verbose -v : equaivalent with help \n"
 			" if you want to use stdin, you should used -  \n"
@@ -677,6 +678,7 @@ void do_not_fourier ()
 #define Xlog   (log(corrSum[j][cT]) )
 				cT = k*nCTime;
 				lT = (k+1)*nCTime-1; // biggest time 
+first:
 				{
 					nnT = cT+2; nT = cT+1;  //Forward Records
 					Fqt1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
@@ -684,31 +686,32 @@ void do_not_fourier ()
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 				}
+				flag_ul = 0;
+middle:
 				for (cT= k*nCTime+1; cT < lT; cT++) {
+					if( corrSum[j][nT] <fFqtUnderLimit ) {
+						flag_ul = 1;
+						break; // Fail to do second central derivative
+					}
 					nT = cT+1;   //Forward Records
 					pT = cT-1;   //Backward Records 
-
-					//						if( corrSum[j][nnT] <0.05 ) break; // Fail to do second central derivative
-					if( corrSum[j][nT] <0.1 ) break; // Fail to do second central derivative
-					Fqt1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
-					//						Fqt1[j] [cT] =   ( (-Xp2+8.*Xp1-8.*Xm1+Xm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
-					GammaQT[j] [cT] =   ( (Xlogp1 - Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2)  Derivative
-					//						GammaQT[j] [cT] =   ( (-Xlogp2+8.*Xlogp1-8.*Xlogm1+Xlogm2 ) / (12.*deltaT )) ;  // Central O(h^4) Derivative
+					// Central O(h^2)  Derivative
+					Fqt1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  
+					GammaQT[j] [cT] =   ( (Xlogp1 - Xlogm1 ) / (2.*deltaT )) ;  	
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
 				}
-				cT = lT;
-				{
-					Fqt1[j] [cT] =   ( (Xp1- Xm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
-					GammaQT[j] [cT] =   ( (Xlogp1- Xlogm1 ) / (2.*deltaT )) ;  // Central O(h^2) first Derivative
-					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
-					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
-
-					ppT = cT-2; pT=cT -1;
-					Fqt1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-					GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
-					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
-					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+last:
+				if( flag_ul == 0 ) {
+					cT = lT;
+					{
+						// Forward O(h^2) first Derivative  Last term
+						ppT = cT-2; pT=cT -1;
+						Fqt1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  
+						GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  
+						Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+						Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+					}
 				}
 
 				cT = cT < k*nCTime +NValDiff  ? cT: k*nCTime+NValDiff;
@@ -718,8 +721,8 @@ void do_not_fourier ()
 						GammaQT[j][cT], Dqt[j][cT]);
 
 			}
-			fclose(output);
 
+			fclose(output);
 
 			//      scaling by function of  t=0
 			for ( k = 0; k < nCSpatial; k += 1 ) {
@@ -748,7 +751,7 @@ void print_output ()
 		if ( header_flag_calc[j] ==1 ) {
 			sprintf(fNFqt, "Fq%s.%s.info",char_do_fourier, header[j]);
 			FILE* fFqt = fopen(fNFqt, "w");
-			Print_R2_datum(fFqt,  Fqt[j]);
+			Print_R2_data(fFqt,  Fqt[j]);
 			fclose(fFqt );
 
 /* 		corrSum[j] = alloc_real(nCSpatial * nCTime);
@@ -762,22 +765,22 @@ void print_output ()
 			if ( header_flag_more[j] ==1 ) {
 				sprintf(fNGammaQT,"GammaQ%s.%s.info", char_do_fourier,header[j]);
 				FILE* fGammaQT = fopen(fNGammaQT, "w");
-				Print_R2_datum(fGammaQT, GammaQT[j]);
+				Print_R2_data(fGammaQT, GammaQT[j]);
 				fclose(fGammaQT);
 
 				sprintf(fNDqt, "Dq%s.%s.info", char_do_fourier, header[j]);
 				FILE* fDqt = fopen(fNDqt, "w");
-				Print_R2_datum(fDqt, Dqt[j]);
+				Print_R2_data(fDqt, Dqt[j]);
 				fclose(fDqt );
 
 				sprintf(fNHqt, "D0Hq%s.%s.info", char_do_fourier, header[j]);
 				FILE* fHqt = fopen(fNHqt, "w");
-				Print_R2_datum(fHqt, Hqt[j]);
+				Print_R2_data(fHqt, Hqt[j]);
 				fclose(fHqt );
 
 				sprintf(fNFqt1, "Fq%s1.%s.info", char_do_fourier, header[j]);
 				FILE* fFqt1 = fopen(fNFqt1, "w");
-				Print_R2_datum(fFqt1,  Fqt1[j]);
+				Print_R2_data(fFqt1,  Fqt1[j]);
 				fclose(fFqt1);
 			}
 		}

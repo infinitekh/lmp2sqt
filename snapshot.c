@@ -479,7 +479,7 @@ int make_atom_all(atom* col,int id, int type,
 	col->vx=vx; 
 	col->vy=vy;
 	col->vz=vz;
-	col->atomType = ATOM_VEL|ATOM_DIPOLE;
+	col->atomType = ATOM_ALL;
 
 	if (mu1>0.001) { 
 		col->mux=mux/mu1;col->muy=muy/mu1;col->muz=muz/mu1;
@@ -578,7 +578,7 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 					stream->mux[i] = mux;
 					stream->muy[i] = muy;
 					stream->muz[i] = muz;
-					stream->atomType = ATOM_VEL|ATOM_DIPOLE;
+					stream->atomType = ATOM_ALL;
 				}
 
 			}

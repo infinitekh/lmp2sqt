@@ -1,1 +1,0 @@
-gcc analysis.c snapshot.c common.c -lm -ggdb -o analysis.gdb

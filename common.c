@@ -37,6 +37,9 @@ int fwrite_matrix( FILE *fout, real **m, int xsize, int ysize, real *rt, real *c
 	return (1);
 }
 
+real real_tensor_dot_r1r1(VecR3* _l,VecR3* _r) {
+	return (_l->x*_r->x)+(_l->y*_r->y)+(_l->z*_r->z);
+}
 void real_tensor_copy_r1r1(VecR3*  lvalue,VecR3* rvalue) {
 	lvalue->x = rvalue->x;
 	lvalue->y = rvalue->y;

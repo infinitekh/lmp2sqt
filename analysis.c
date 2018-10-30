@@ -1,13 +1,13 @@
 /*
  * =====================================================================================
  *
- *       Filename:  analysis.cpp
+ *       Filename:  analysis.c
  *
  *    Description:  
  *
- *        Version:  1.1 (Full Dqt)
+ *        Version:  1.2 (Full Dqt)
  *        Created:  2016년 07월 26일 14시 24분 35초
- *       Revision:  none
+ *       Revision:  2018년 09월 18일 (화) 오후 03시 40분 10초
  *       Compiler:  gcc
  *
  *         Author:  Ph.D. Candidate KIM Hyeok (kh), ekh0324@gmail.com
@@ -29,6 +29,9 @@
 #include "common.h"
 
 
+#define ALLOC_pointer(type) type**  alloc_pointer_ ## type(size_t n) { \
+	  return (type **) malloc(sizeof(type*)*n); \
+}
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
 	  return (type *) malloc(sizeof(type)*n); \
 }
@@ -59,6 +62,7 @@ if (! strncmp (bp, #x, strlen (#x))) { \
 
 #define BUFF_LEN 50000
 ALLOC(double); ALLOC(real); ALLOC(int); ALLOC(Cmplx);
+ALLOC_pointer(real); ALLOC_pointer(int);
 int  type[]    = { 1,   1,  1,  0 };
 int  scail[]    = { 1,   1,  1,  0 };
 char *header[] = {
@@ -119,7 +123,7 @@ int omegaMax,doFourier,doWindow;
 int nData,nCSpatial,nSet,nSetSkip,
 		nv, nCTime, NValDiff;
 real deltaT,deltaTCorr,kVal,kVal2;
-void Print_R2_datas ( FILE*, real*);
+void Print_R2_data ( FILE*, real*);
 
 static int verbose_flag;
 extern char* txtCorr;
@@ -460,7 +464,7 @@ int main ( int argc, char **argv)
 		if ( header_flag_calc[j] ==1 ) {
 			sprintf(fNFqt, "Fqt.%s.info", header[j]);
 			FILE* fFqt = fopen(fNFqt, "w");
-			Print_R2_datas(fFqt,  Fqt[j]);
+			Print_R2_data(fFqt,  Fqt[j]);
 			fclose(fFqt );
 
 /* 		corrSum[j] = alloc_real(nCSpatial * nCTime);
@@ -474,22 +478,22 @@ int main ( int argc, char **argv)
 			if ( header_flag_more[j] ==1 ) {
 				sprintf(fNGammaQT,"GammaQT.%s.info", header[j]);
 				FILE* fGammaQT = fopen(fNGammaQT, "w");
-				Print_R2_datas(fGammaQT, GammaQT[j]);
+				Print_R2_data(fGammaQT, GammaQT[j]);
 				fclose(fGammaQT);
 
 				sprintf(fNDqt, "Dqt.%s.info", header[j]);
 				FILE* fDqt = fopen(fNDqt, "w");
-				Print_R2_datas(fDqt, Dqt[j]);
+				Print_R2_data(fDqt, Dqt[j]);
 				fclose(fDqt );
 
 				sprintf(fNHqt, "D0Hqt.%s.info", header[j]);
 				FILE* fHqt = fopen(fNHqt, "w");
-				Print_R2_datas(fHqt, Hqt[j]);
+				Print_R2_data(fHqt, Hqt[j]);
 				fclose(fHqt );
 
 				sprintf(fNFqt1, "Fqt1.%s.info", header[j]);
 				FILE* fFqt1 = fopen(fNFqt1, "w");
-				Print_R2_datas(fFqt1,  Fqt1[j]);
+				Print_R2_data(fFqt1,  Fqt1[j]);
 				fclose(fFqt1);
 			}
 		}
@@ -497,7 +501,7 @@ int main ( int argc, char **argv)
 
 	}
 }
-void Print_R2_datas ( FILE* fp, real* datas)
+void Print_R2_data ( FILE* fp, real* datas)
 {
 	real x; int nr, n ;
 	fprintf(fp,"#%d", nCSpatial);

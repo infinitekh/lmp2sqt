@@ -36,6 +36,7 @@ int error_code;
 static char line[MAXLINE];
 #define ATOM_VEL 0x1
 #define ATOM_DIPOLE 0x2
+#define ATOM_ALL (ATOM_VEL|ATOM_DIPOLE)
 /* #####   EXPORTED TYPE DEFINITIONS   ############################################## */
 typedef struct {
 	real *x,*y,*z;   
@@ -50,6 +51,44 @@ typedef struct {
 	int mux,muy,muz;
 	int vx,vy,vz;
 } atom_column;
+typedef struct {
+	int id,                                       ///< unique atom id
+			type;                                     ///< atom type
+	real x,                                       ///< atom position
+			 y,                                       ///< atom position z
+			 z;                                       /*!< \brief atom position z */
+	real vx,                                      /*!< \brief velocity of x-axis */
+			 vy,                                      /*!< \brief velocity of x-axis */
+			 vz;                                      /*!< \brief velocity of x-axis */
+	int atomType;
+} vAtom;
+typedef struct {
+	int id,                                       ///< unique atom id
+			type;                                     ///< atom type
+	real x,                                       ///< atom position
+			 y,                                       ///< atom position z
+			 z;                                       /*!< \brief atom position z */
+	real mux,                                     /*!< \brief magnetic moment of x-axis */
+			 muy,                                     /*!< \brief magnetic moment of x-axis */
+			 muz;                                     /*!< \brief magnetic moment of x-axis */
+	real mu1;                                     /*!< \brief \f$ |\mu| \f$ */
+	int atomType;
+} muAtom;
+typedef struct {
+	int id,                                       ///< unique atom id
+			type;                                     ///< atom type
+	real x,                                       ///< atom position
+			 y,                                       ///< atom position z
+			 z;                                       /*!< \brief atom position z */
+	real mux,                                     /*!< \brief magnetic moment of x-axis */
+			 muy,                                     /*!< \brief magnetic moment of x-axis */
+			 muz;                                     /*!< \brief magnetic moment of x-axis */
+	real vx,                                      /*!< \brief velocity of x-axis */
+			 vy,                                      /*!< \brief velocity of x-axis */
+			 vz;                                      /*!< \brief velocity of x-axis */
+	real mu1;                                     /*!< \brief \f$ |\mu| \f$ */
+	int atomType;
+} atomAll;
 typedef struct {
 	int id,                                       ///< unique atom id
 			type;                                     ///< atom type
@@ -96,6 +135,7 @@ typedef struct  {
 	int    n_atoms;                               /*!< \brief n : the number of atom */
 	Box3 box;                                     /*!< \brief Box property */
 	atom* atoms;                                  /*!< \brief atom[0..n-1] */
+	int snapFlag;
 } Snapshot;
 /*!
  *  \brief  struct  for system snapshot

@@ -92,8 +92,6 @@ bool flag_f=false;
 bool flag_t=false;
 bool flag_s=false;
 
-
-
 char inputFilename[100]= "in.lmp2sqt";
 void UpdateNameList ();
 void PrintNameList2File (FILE *fp);
@@ -230,8 +228,9 @@ int main(int argc, char** argv) {
 	nthreads = omp_get_max_threads();
 	nthreads = (nthreads< num_files)? nthreads:num_files;
 	omp_set_num_threads(nthreads);
-	nthreads = 1;
-	omp_set_num_threads(nthreads);
+/* 	nthreads = 1;
+ * 	omp_set_num_threads(nthreads);
+ */
 	
 	real * r_done_works;
 	int * i_done_works;
@@ -365,6 +364,10 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 						avF_d_qq2[k][n] += pt->F_d_qq2[k][n];
 						if(1){
 							avC2_v_rho[k][n] += pt->C2_v_rho[k][n];
+						}
+						if(1){
+							avC2_mu_rho[k][n] += pt->C2_mu_rho[k][n];
+							avC2_mu_mu[k][n] += pt->C2_mu_mu[k][n];
 						}
 					}
 				}
@@ -785,6 +788,7 @@ void PrintEtc () {
 	char filename3[100];
 	char filename4[100];
 	char filename5[100];
+	char filename6[100];
 	char filename_stress[100];
 	int nfile = 0;
 	sprintf(filename1, "Dt%03d.info",nfile);
@@ -793,6 +797,7 @@ void PrintEtc () {
 	sprintf(filename3, "SSF%03d.info",nfile);
 	sprintf(filename4, "C2_v_rho%03d.info",nfile);
 	sprintf(filename5, "C2_mu_rho%03d.info",nfile);
+	sprintf(filename6, "C2_mu_mu%03d.info",nfile);
 	nfile++;
 	//printf( "access(%s) -> return %d", filename1, access(filename1,F_OK));
 	//		
@@ -836,14 +841,18 @@ void PrintEtc () {
 		FILE* fp_SSF = fopen(filename3,"w");
 		FILE* fp_C2vrho = fopen(filename4,"w");
 		FILE* fp_C2murho = fopen(filename5,"w");
+		FILE* fp_C2mumu = fopen(filename6,"w");
 		for (int nr = 0; nr < nCSpatial; nr ++) {
-			fprintf (fp_C2vrho, "%8.4f" " %8.4e""\n" , (nr+1)*kVal , 
+			fprintf (fp_C2vrho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
 					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
 							avC2_v_rho[(AVDOF*nr)+0][0]);
-			fprintf (fp_C2murho, "%8.4f" " %8.4e""\n" , (nr+1)*kVal , 
+			fprintf (fp_C2murho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
 					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
 							avC2_mu_rho[(AVDOF*nr)+0][0]);
-			fprintf (fp_SSF, "%8.4f" " %8.4e""\n" , (nr+1)*kVal , 
+			fprintf (fp_C2mumu, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
+					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
+							avC2_mu_mu[(AVDOF*nr)+0][0]);
+			fprintf (fp_SSF, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
 					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
 							avF_qq2[(AVDOF*nr)+0][0]);
 		}
@@ -925,11 +934,13 @@ void ZeroOneTimeCorr(MakeSqtClass* cl_sqt)
 	TBuf* tBuf = cl_sqt->tBuf;
 	real *	rho_q1  = tBuf->rho_q1 ;
 	real *	kvel_q1  = tBuf->kvel_q1 ;
+	real *	kmu_q1  = tBuf->kmu_q1 ;
 	real **	rho_s_q1  = tBuf->rho_s_q1 ;
 	real **	rho_d_q1 = tBuf->rho_d_q1;
 	for (int j = 0; j < FDOF * nCSpatial; j ++) {
 		rho_q1[j] = 0.;
 		kvel_q1[j] = 0.;
+		kmu_q1[j] = 0.;
 	}
 	if ( flagSelf ) {
 		for (int n=0; n<nPtls; n++) {
@@ -978,7 +989,7 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 
 /*-----------------------------------------------------------------------------
  *  Direct calculate  rho(q)
- *  ADDIT : (~v)(q)
+ *  FIXIT : (~v)(q)   (~mu)(q) 
  *-----------------------------------------------------------------------------*/
 	for (int n=0; n<nPtls; n++) {
 		col_i = &(snap->atoms[n]);
@@ -1153,6 +1164,7 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 			tBuf_tw->F_qq2[k][subtime] = 0.;
 			tBuf_tw->C2_v_rho[k][subtime] = 0.;
 			tBuf_tw->C2_mu_rho[k][subtime] = 0.;
+			tBuf_tw->C2_mu_mu[k][subtime] = 0.;
 			tBuf_tw->F_s_qq2[k][subtime] = 0.;
 			tBuf_tw->F_d_qq2[k][subtime] = 0.;
 		}
@@ -1319,14 +1331,24 @@ void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 				if(1) 
 				{
 					tBuf_tw->C2_v_rho[nav][subtime] +=
-						w * (kvel_q1[markerR] * tBuf_tw->org_kvel_q1[markerR] +
-								kvel_q1[markerI] * tBuf_tw->org_kvel_q1[markerI]);
+						w * (rho_q1[markerR] * tBuf_tw->org_kvel_q1[markerR] +
+								rho_q1[markerI] * tBuf_tw->org_kvel_q1[markerI]);
 				}
 				if(1) 
 				{
 					tBuf_tw->C2_mu_rho[nav][subtime] +=
+						w * (rho_q1[markerR] * tBuf_tw->org_kmu_q1[markerR] +
+								rho_q1[markerI] * tBuf_tw->org_kmu_q1[markerI]);
+					tBuf_tw->C2_mu_mu[nav][subtime] +=
 						w * (kmu_q1[markerR] * tBuf_tw->org_kmu_q1[markerR] +
 								kmu_q1[markerI] * tBuf_tw->org_kmu_q1[markerI]);
+/* 					printf("j = %d,rho(t) = %g+%gi,\t = %g+%gi\n",nav,
+ * 							kmu_q1[markerR],
+ * 							kmu_q1[markerI],
+ * 							tBuf_tw->org_kmu_q1[markerR],
+ * 							tBuf_tw->org_kmu_q1[markerI]
+ * 							);
+ */
 				}
 				tBuf_tw->F_qq2[nav][subtime] +=
 					w * (rho_q1[markerR] * tBuf_tw->org_rho_q1[markerR] +
@@ -1334,7 +1356,7 @@ void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 				//			}  // for nc, 
 			}    // for nk , 
 		} 
-	}
+	} // if flag_f
 }
 void EvalTwoTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
@@ -1413,6 +1435,7 @@ void AllocArray (MakeSqtClass* cl_sqt)
 			AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
 			AllocMem2 (avC2_v_rho,  AVDOF * nCSpatial, nCTime, real);
 			AllocMem2 (avC2_mu_rho,  AVDOF * nCSpatial, nCTime, real);
+			AllocMem2 (avC2_mu_mu,  AVDOF * nCSpatial, nCTime, real);
 
 			AllocMem2 (valDqt,  nCSpatial, nCTime, real);
 			AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
@@ -1435,6 +1458,7 @@ void AllocArray (MakeSqtClass* cl_sqt)
 			AllocMem2 (b->F_qq2, AVDOF * nCSpatial, nCTime, real);
 			AllocMem2 (b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
 			AllocMem2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
+			AllocMem2 (b->C2_mu_mu, AVDOF * nCSpatial, nCTime, real);
 		}
 	}
 	/*!
