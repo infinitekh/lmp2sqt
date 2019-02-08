@@ -35,6 +35,11 @@
 #define ALLOC(type) type*  alloc_ ## type(size_t n) { \
 	  return (type *) malloc(sizeof(type)*n); \
 }
+#define ALLOC_INIT_(type) type*  alloc_init_ ## type(size_t n, type m0 ) { \
+	  type* mem = (type *) malloc(sizeof(type)*n); \
+	  for(int i=0; i<n;i++) mem[i] = m0;\
+	return mem; \
+}
 #define Min(a,b) ( (a<b)?(a):(b))
 #define CSet(a, x, y) a.R = x, a.I = y
 #define CAdd(a, b, c) a.R = b.R + c.R, a.I = b.I + c.I

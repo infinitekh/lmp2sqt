@@ -5,9 +5,9 @@
  *
  *    Description:  
  *
- *        Version:  1.2 (Full Dqt)
+ *        Version:  1.4 (Full Dqt)
  *        Created:  2018년 03월 06일 (화) 오후 07시 02분 42초
- *       Revision:  2018년 09월 18일 (화) 오후 03시 40분 10초
+ *       Revision:  2018년 10월 30일 (화) 오후 02시 42분 34초
  *       Compiler:  gcc
  *
  *         Author:  Ph.D. Candidate KIM Hyeok (kh), ekh0324@gmail.com
@@ -135,15 +135,15 @@ extern char* txtCorr;
  */
 long int g_weight =0;
 real **corrSum, **corrSumSq, **corrSumErr,
-		 **Fqt, **Dqt,**Hqt,**Fqt1,damp, 
+		 **Fqt, **Dqt, **Dqt_c,**Hqt,**Hqt_c,**Fqt1,damp, 
 		 **GammaQT, tMax, w,x, qVal, qVal2;
 Cmplx *work;
 real valGamma, valDq, valSq, Fq0;
-int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT, lT;
+int j,k,n,nT,nnT,nnnT,cT, pT,ppT, pppT, endT, beginT,endT;
 real fFqtUnderLimit= exp(-2.5);
 int flag_ul;
 char *bp, *fName, buff[BUFF_LEN], *lmpFileName, output_filename[BUFF_LEN];
-FILE *input, *output;
+FILE *input, *output,*input_text;
 Snapshot* pSnap;
 
 char char_do_fourier[2];
@@ -203,6 +203,7 @@ int main ( int argc, char **argv)
 
 	print_output () ;
 }
+
 void Print_R2_data ( FILE* fp, real* datas)
 {
 	real x; int nr, n ;
@@ -240,6 +241,7 @@ void PrintHelp ( char *pName, int linenumber)
 			"\t--ulimit -r (with option float:default->exp(-2.5)): \n"
 			"\t--help -h    : usage of this function\n"
 			"\t--verbose -v : equaivalent with help \n"
+			"\t--text  : text style data file \n"
 			" if you want to use stdin, you should used -  \n"
 			"Error line number %d\n"
 			, pName, linenumber);
@@ -352,8 +354,10 @@ void init_memory()
 	corrSum = alloc_pointer_real(nDataTypes);
 	Fqt1 = alloc_pointer_real(nDataTypes);
 	Dqt = alloc_pointer_real(nDataTypes);
+	Dqt_c = alloc_pointer_real(nDataTypes);
 	Fqt = alloc_pointer_real(nDataTypes);
 	Hqt = alloc_pointer_real(nDataTypes);
+	Hqt_c = alloc_pointer_real(nDataTypes);
 	GammaQT = alloc_pointer_real(nDataTypes);
 
 	corrSumSq = alloc_pointer_real(nDataTypes);
@@ -363,8 +367,10 @@ void init_memory()
 		corrSum[j] = alloc_real(nCSpatial * nCTime);
 		Fqt1[j] = alloc_real(nCSpatial * nCTime);
 		Dqt[j] = alloc_real(nCSpatial * nCTime);
+		Dqt_c[j] = alloc_real(nCSpatial * nCTime);
 		Fqt[j] = alloc_real(nCSpatial * nCTime);
 		Hqt[j] = alloc_real(nCSpatial * nCTime);
+		Hqt_c[j] = alloc_real(nCSpatial * nCTime);
 		GammaQT[j] = alloc_real(nCSpatial * nCTime);
 
 		corrSumSq[j] = alloc_real( nCSpatial * nCTime);
@@ -376,7 +382,9 @@ void init_memory()
 			Fqt [j][n] = 0.;
 			Fqt1 [j][n] = NAN;
 			Dqt [j][n] = NAN;
+			Dqt_c [j][n] = NAN;
 			Hqt [j][n] = NAN;
+			Hqt_c [j][n] = NAN;
 			GammaQT [j][n] = NAN;
 		}
 	}
@@ -411,6 +419,7 @@ void parser_option(int argc, char** argv)
 		{"nskip", required_argument, 0, 's'},
 		{"ndiff", required_argument, 0, 'd'},
 		{"ulimit", required_argument, 0, 'u'},
+		{"text", no_argument, 0, 1  },
 		{"help", no_argument, 0, 'h'},
 		{0,0,0,0}
 	};
@@ -454,6 +463,7 @@ void import_settings(char* inputFilename)
 {
 
 	input = fopen( inputFilename, "r");
+	input_text = fopen( inputFilename, "r");
 	while (1) {
 		bp = fgets (buff, BUFF_LEN, input);
 		if (*bp == CHAR_MINUS) break;
@@ -470,7 +480,7 @@ void import_settings(char* inputFilename)
 	if(!strcmp(fName,"-")) {
 		input = stdin;
 	} else {
-		input = fopen(fName,"r");
+		input = fopen(fName,"rb");
 		if (NULL == input) {
 			fprintf(stderr, "Unable to open '%s': %s\n",
 					fName, strerror(errno));
@@ -497,7 +507,6 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 
 		fread (&nTypes,sizeof(int) ,1,input);
 		for ( j =0; j < nTypes; j++) {
-			int tmpint = strlen(header[j]);
 			real col2 ; 
 			real col3 ; 
 			real col4 ; 
@@ -540,6 +549,91 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 		g_weight +=weight;
 	}
 }
+void load_raw_data_text()// Need Check!!!!!
+{
+	real* rbuffer = alloc_real(nCSpatial * nCTime);
+	// The Preamble
+	if (doFourier)
+		work = alloc_Cmplx( 2 * (nCTime -1));
+	nData =0;
+	nSet =0;
+	while (1) {
+		//		if ( NULL == (pSnap = read_dump (input ) )) break;
+
+		// To reach end of file, break!!
+		if (! (bp = fgets (buff, BUFF_LEN, input_text))) break;
+		int nTypes;
+		if (! strncmp (bp, txtCorr, strlen (txtCorr))) {
+			++ nSet;
+			if (nSet < nSetSkip) continue;
+			++ nData;
+			fread (&nTypes,sizeof(int) ,1,input);
+			// if (nTypes > nDataTypes) break; // error;
+
+			for ( j =0; j < nTypes; j++) {
+				real col2 ; 
+				real col3 ; 
+				real col4 ; 
+
+				/* 				char str_temp[100] = "# ";
+				 * 				strncpy(str_temp +2 , header[j], strlen(header[j]));
+				 */
+				char str_temp[100];
+				/* 				char str_temp[100] = "# ";
+				 * 				strncpy(str_temp +2 , header[j], strlen(header[j]));
+				 */
+				bp = fgets (buff, BUFF_LEN, input_text); 
+
+				size_t strlength = strlen(header[j]);
+				fread(str_temp, sizeof(char), strlength, input_text);
+				str_temp[strlength]='\0';
+				fread(&col2, sizeof(real),1,input_text);
+				fread(&col3, sizeof(real),1,input_text);
+				fread(&col4, sizeof(real),1,input_text);
+
+				int ret_cmp = strncmp (header[j], str_temp,  strlen (header[j]));
+#ifndef NDEBUG
+				printf( "str_temp : %s\n"
+						"col2 : %f\n"
+						"col3 : %f\n"
+						"col4 : %f\n", str_temp,col2,col3,col4);
+				printf("ret_cmp %d, %s -- %s   %d\n", ret_cmp,
+						header[j],str_temp,(int)strlen(str_temp));
+
+#endif
+
+				// header types check(not completed)
+				if ( !ret_cmp )  {
+					fread(rbuffer, sizeof(real), (nCTime*nCSpatial), input_text);
+					if ( !ret_cmp )  {
+						for ( n =0; n<nCTime; n ++) {
+							bp = fgets (buff, BUFF_LEN, input_text);
+#ifndef NDEBUG
+							printf("TIME%5d : %s\n",n,buff);
+#endif
+							for ( k = 0; k < nCSpatial; k += 1 ) {
+								w = strtod (bp, &bp);
+#ifndef NDEBUG
+								//							printf("LINE %4d : %8.4f",__LINE__,w);
+#endif
+								corrSum[j][k * nCTime + n] += w;
+								corrSumSq[j][k * nCTime + n] += Sqr(w);
+								/* 						sleep(1);
+								 * 						printf("why is this value nan? %f %f  \n",corrSum[j][k*nCTime +n], w);
+								 */
+							}
+#ifndef NDEBUG
+							puts("\n");
+#endif
+						}
+					}
+				}
+			}
+		}
+	}
+	fclose (input_text);
+	printf ("%d\n", nData);
+}
 void load_raw_data()
 {
 	real* rbuffer = alloc_real(nCSpatial * nCTime);
@@ -564,7 +658,6 @@ void load_raw_data()
 
 			fread (&nTypes,sizeof(int) ,1,input);
 			for ( j =0; j < nTypes; j++) {
-				int tmpint = strlen(header[j]);
 				real col2 ; 
 				real col3 ; 
 				real col4 ; 
@@ -657,6 +750,7 @@ void do_not_fourier ()
 			for (k = 0; k < nCSpatial; k ++) {
 				qVal = (k+1)*kVal; qVal2=qVal*qVal;
 				Fq0 = corrSum[j] [k*nCTime];
+				double lnFq0 = log(Fq0);
 
 				/*--------------------------------------------
 				 *      get slope on nValDiff time or
@@ -676,19 +770,21 @@ void do_not_fourier ()
 #define Xlogp2 (log(corrSum[j][nnT]))
 #define Xlogp1 (log(corrSum[j][nT]) )
 #define Xlog   (log(corrSum[j][cT]) )
-				cT = k*nCTime;
-				lT = (k+1)*nCTime-1; // biggest time 
+				cT = beginT = k*nCTime;
+				endT = (k+1)*nCTime-1; // biggest time 
 first:
 				{
 					nnT = cT+2; nT = cT+1;  //Forward Records
 					Fqt1[j] [cT] =   ( (-Xp2+4.*Xp1 -3.* X ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					GammaQT[j] [cT] =   ( (-Xlogp2+4.*Xlogp1 -3.* Xlog ) / (2.*deltaT )) ;  // Forward O(h^2) first Derivative
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Dqt_c [j] [cT] = Dqt [j] [cT];
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+					Hqt_c [j] [cT] =  Dqt_c[j][cT] * Fq0;
 				}
 				flag_ul = 0;
 middle:
-				for (cT= k*nCTime+1; cT < lT; cT++) {
+				for (cT= beginT+1; cT < endT; cT++) {
 					if( corrSum[j][nT] <fFqtUnderLimit ) {
 						flag_ul = 1;
 						break; // Fail to do second central derivative
@@ -699,18 +795,22 @@ middle:
 					Fqt1[j] [cT] =   ( (Xp1- Xm1) / (2.*deltaT )) ;  
 					GammaQT[j] [cT] =   ( (Xlogp1 - Xlogm1 ) / (2.*deltaT )) ;  	
 					Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+					Dqt_c [j] [cT] = - (Xlog - lnFq0)/(qVal2*deltaT*(cT-beginT)) ;
 					Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+					Hqt_c [j] [cT] =  Dqt_c[j][cT] * Fq0;
 				}
 last:
 				if( flag_ul == 0 ) {
-					cT = lT;
+					cT = endT;
 					{
 						// Forward O(h^2) first Derivative  Last term
 						ppT = cT-2; pT=cT -1;
 						Fqt1[j] [cT] =   ( (+Xm2-4.*Xm1 +3.* X ) / (2.*deltaT )) ;  
 						GammaQT[j] [cT] =   ( (+Xlogm2-4.*Xlogm1 +3.* Xlog ) / (2.*deltaT )) ;  
 						Dqt [j] [cT] = - GammaQT[j][cT]/qVal2;
+						Dqt_c [j] [cT] = - (Xlog - lnFq0)/(qVal2*deltaT*(cT-beginT)) ;
 						Hqt [j] [cT] =  Dqt[j][cT] * Fq0;
+						Hqt_c [j] [cT] =  Dqt_c[j][cT] * Fq0;
 					}
 				}
 
@@ -743,12 +843,20 @@ void print_output ()
 {
 	char fNGammaQT[100] ;
 	char fNDqt[100] ;
+	char fNDqt_c[100] ;
 	char fNHqt[100] ;
+	char fNHqt_c[100] ;
 	char fNFqt[100] ;
+	char fNFqt_scaled[100] ;
 	char fNFqt1[100];
 
 	for ( j = 0; j < nDataTypes; j += 1 ) {
 		if ( header_flag_calc[j] ==1 ) {
+			sprintf(fNFqt_scaled, "Fq%s_scaled.%s.info",char_do_fourier, header[j]);
+			FILE* fFqt_scaled = fopen(fNFqt_scaled, "w");
+			Print_R2_data(fFqt_scaled, corrSum[j]);
+			fclose(fFqt_scaled );
+
 			sprintf(fNFqt, "Fq%s.%s.info",char_do_fourier, header[j]);
 			FILE* fFqt = fopen(fNFqt, "w");
 			Print_R2_data(fFqt,  Fqt[j]);
@@ -768,10 +876,20 @@ void print_output ()
 				Print_R2_data(fGammaQT, GammaQT[j]);
 				fclose(fGammaQT);
 
+				sprintf(fNDqt_c, "Dq%s_c.%s.info", char_do_fourier, header[j]);
+				FILE* fDqt_c = fopen(fNDqt_c, "w");
+				Print_R2_data(fDqt_c, Dqt_c[j]);
+				fclose(fDqt_c );
+
 				sprintf(fNDqt, "Dq%s.%s.info", char_do_fourier, header[j]);
 				FILE* fDqt = fopen(fNDqt, "w");
 				Print_R2_data(fDqt, Dqt[j]);
 				fclose(fDqt );
+
+				sprintf(fNHqt_c, "D0Hq%s_c.%s.info", char_do_fourier, header[j]);
+				FILE* fHqt_c = fopen(fNHqt_c, "w");
+				Print_R2_data(fHqt_c, Hqt_c[j]);
+				fclose(fHqt_c );
 
 				sprintf(fNHqt, "D0Hq%s.%s.info", char_do_fourier, header[j]);
 				FILE* fHqt = fopen(fNHqt, "w");
