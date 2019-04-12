@@ -122,7 +122,7 @@ real finite_diff2(real* diff2,real* diff, real* record, int size, real dt);
 int omegaMax,doFourier,doWindow;
 int nData,nCSpatial,nSet,nSetSkip,
 		nv, nCTime, NValDiff;
-real deltaT,deltaTCorr,kVal,kVal2;
+real deltaT,deltaTCorr,kVal,kVal2,rVal;
 void Print_R2_data ( FILE*, real*);
 
 static int verbose_flag;
@@ -499,6 +499,7 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 	//		if ( NULL == (pSnap = read_dump (input ) )) break;
 	int suc_count = 0, full_count = strlen(txtCorr) ;
 	// To reach end of file, break!!
+  fread(full_count,sizeof(int),1,input);
 	suc_count = fread (bp,sizeof(char) ,full_count,input);
 	if ( full_count != suc_count)  return;
 	int nTypes;
@@ -515,9 +516,11 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 			 * 				strncpy(str_temp +2 , header[j], strlen(header[j]));
 			 */
 			char str_temp[100];
-			size_t strlength = strlen(header[j]);
+			int strlength = strlen(header[j]);
+
+			fread(strlength,sizeof(int),1,input);
 			fread(str_temp, sizeof(char), strlength, input);
-			str_temp[strlength]='\0';
+
 			fread(&col2, sizeof(real),1,input);
 			fread(&col3, sizeof(real),1,input);
 			fread(&col4, sizeof(real),1,input);
@@ -668,10 +671,14 @@ void load_raw_data()
 				char str_temp[100];
 				size_t strlength = strlen(header[j]);
 				fread(str_temp, sizeof(char), strlength, input);
-				str_temp[strlength]='\0';
+
 				fread(&col2, sizeof(real),1,input);
 				fread(&col3, sizeof(real),1,input);
 				fread(&col4, sizeof(real),1,input);
+
+				kVal = col2;
+				deltaT = col3;
+				rVal = col4;
 
 				int ret_cmp = strncmp (header[j], str_temp,  strlen (header[j]));
 #ifndef NDEBUG
@@ -826,6 +833,7 @@ last:
 
 			//      scaling by function of  t=0
 			for ( k = 0; k < nCSpatial; k += 1 ) {
+#pragma omp parallel for
 				for ( n = 1; n < nCTime; n += 1 ){ 
 					Fqt [j][k*nCTime + n] = corrSum [j][k*nCTime + n] ;
 					corrSum[j][k * nCTime +n] /= corrSum[j][k*nCTime];
@@ -852,6 +860,7 @@ void print_output ()
 
 	for ( j = 0; j < nDataTypes; j += 1 ) {
 		if ( header_flag_calc[j] ==1 ) {
+
 			sprintf(fNFqt_scaled, "Fq%s_scaled.%s.info",char_do_fourier, header[j]);
 			FILE* fFqt_scaled = fopen(fNFqt_scaled, "w");
 			Print_R2_data(fFqt_scaled, corrSum[j]);
