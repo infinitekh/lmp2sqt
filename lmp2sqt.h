@@ -149,6 +149,7 @@ typedef struct {
 	TBuf *tBuf;
 	int flag_alloc,flag_alloc_more;
 	Snapshot* snap;
+	int nSkip;
 } MakeSqtClass;
 MakeSqtClass* classSqt;
 // global data
@@ -166,7 +167,7 @@ real **avC2_mu_mu;
 
 
 real *factorDr, *radius;
-int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime;
+int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime, nCSkip;
 
 
 

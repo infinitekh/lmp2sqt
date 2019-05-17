@@ -5,8 +5,8 @@
  *  \author  KIM Hyeok (kh), ekh0324@gmail.com
  *
  *  \internal
- *       Created:  2017- 05- 29
- *      Revision:  none
+ *       Created:  2017-05-29
+ *      Revision:  2019-04-12
  *      Compiler:  gcc
  *  Organization:  Konkuk University
  *     Copyright:  Copyright (c) 2017, KIM Hyeok
@@ -24,11 +24,13 @@
 #include <stdlib.h>
 #include	<unistd.h>
 #include <stdbool.h>
+#include <getopt.h>
 #ifndef M_PI
 #define M_PI       3.14159265358979323846
 #endif
 #include <math.h>
 #include "snapshot.h"
+#include <time.h>
 
 
 #define DIM 3
@@ -39,12 +41,13 @@ typedef struct {
 	char *vName;
 	void *vPtr;
 	VType vType;
-	int vLen, vStatus;
+	size_t vLen ;
+	int vStatus;
 } NameList;
 #define NameI(x)                      \
-{#x, &x, N_I, sizeof (x) / sizeof (int)}
+{#x, &x, N_I, sizeof (x) / sizeof (int), 0}
 #define NameR(x)                       \
-{#x, &x, N_R, sizeof (x) / sizeof (real)}
+{#x, &x, N_R, sizeof (x) / sizeof (real),0}
 
 typedef struct {
 	void *vPtr;
@@ -62,31 +65,36 @@ typedef struct {
 #define NP_R         \
 	((real *) (nameList[k].vPtr) + j)
 
+/*!
+ *  \brief  Data List
+ *  kVal
+ *  deltaT
+ *  mass
+ *  rVal
+ *  limitCorrAv
+ *	limitCorrAv 
+ *	nCBuffer  = number of simul. time seq
+ *	nCSpatial = number of spatial seq
+ *	nCTime    = number of time seq
+ *	nCSkip    = number of time seq
+ *
+ */
+#define DATALIST { \
+	NameR   (kVal),   \
+	NameR   (deltaT),   \
+	NameR   (mass),   \
+	NameR   (rVal),   \
+	NameI  	(limitCorrAv),\
+	NameI   (nCBuffer),   \
+	NameI   (nCSpatial),   \
+	NameI   (nCTime),   \
+	NameI   (nCSkip)   \
+}
 
-NameList nameList[] = {
-	/*!
-	 *  \brief  system information 
-	 */
-	NameR   (kVal),
-	NameR   (deltaT),
-	NameR   (mass),
-	/*!
-	 *  \brief input parameter for evaluation 
-	 */
-	NameR   (rVal),
-	NameI  	(limitCorrAv),
-	NameI   (nCBuffer),       // number of simul. time seq
-	NameI   (nCSpatial),        // number of spatial seq
-	NameI   (nCTime)         // number of time seq
-};
-typedef int coordi3[3];
-#define OOS2 (0.7071067811865475)
-#define OOS3 (0.5773502691896258)
-coordi3 coordi_list[]= {
-	{ +1,+0,+0},
-	{ +0,+1,+0},
-	{ +0,+0,+1}   /*    , // basic */
-};
+
+
+NameList nameList[] = DATALIST;
+
 
 bool flag_f=false;
 bool flag_t=false;
@@ -95,12 +103,12 @@ bool flag_s=false;
 char inputFilename[100]= "in.lmp2sqt";
 void UpdateNameList ();
 void PrintNameList2File (FILE *fp);
-int GetNameList (int argc, char **argv);
+int GetNameList ();
 int Number_call_Print =0;
 int flag_global_alloc =0 ;
 int flag_global_alloc_more =0 ;
 void PrintSpacetimeCorr_binary ( FILE*);
-
+char datetime_data[100] ;
 int main(int argc, char** argv) {
 	char filename[100];
 	int n_snap;
@@ -113,6 +121,12 @@ int main(int argc, char** argv) {
 
 	omp_init_lock(&write_lock);
 	omp_init_lock(&read_lock);
+	time_t rawtime;
+	struct tm* timeinfo;
+	rawtime = time(NULL);
+	timeinfo   =  localtime(&rawtime);
+//	strftime(datetime_data,100,"%y%d%m_%H%M", timeinfo);
+	strftime(datetime_data,100,"%y%d%m", timeinfo);
 	
 	if( argc <2) {
 		printf("%s -f -t -s \n"
@@ -171,7 +185,7 @@ int main(int argc, char** argv) {
 		return EXIT_FAILURE;
 	}
 
-	GetNameList(argc,argv);
+	GetNameList();
 	for( opt_num = optind;   opt_num < argc; opt_num++)  {
 		strcpy( filename,argv[opt_num]);
 		FILE* fp = fopen( filename ,"r");
@@ -226,8 +240,10 @@ int main(int argc, char** argv) {
 		if (files_on[opt_num] == true) num_files ++;
 	}
 	nthreads = omp_get_max_threads();
-	nthreads = (nthreads< num_files)? nthreads:num_files;
+	////  below code for n file openmp test;
+////	nthreads = (nthreads< num_files)? nthreads:num_files;
 	omp_set_num_threads(nthreads);
+	printf("OMP_SET_NUM_THREADS=%d\n",nthreads);
 /* 	nthreads = 1;
  * 	omp_set_num_threads(nthreads);
  */
@@ -307,7 +323,8 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "limit corr  = %d, countCorrAv = %d\n",
 				limitCorrAv,countCorrAv);
 		limitCorrAv =countCorrAv;
-		PrintProcess(NULL);
+		MakeSqtClass* cl_sqt = & classSqt[0];
+		PrintProcess(cl_sqt);
 
 	}
 
@@ -321,6 +338,10 @@ void PrintProcess(MakeSqtClass* cl_sqt)
 	FILE* fout_log  = fopen( "output.log", "w+");
 	fputs("Call PrintProcess : \n", fout_log);
 	fputs("Call PrintProcess : \n", stderr);
+	
+	if(NULL== cl_sqt){
+		exit(1);
+	}
 
 	void prePrintProcess () ;
 	void PrintEtc();
@@ -379,6 +400,7 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 			}
 			// Diffuse Part
 			if (flag_t == true) {
+#pragma omp parallel for
 				for (nt = 0; nt < nCTime; nt ++) {
 					rrMSDAv[nt] += pt->rrMSD[nt];
 					rrMSDCMAv[nt] += pt->rrMSDCM[nt];
@@ -409,6 +431,7 @@ void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 	 *  \brief  프로그램 초기에 시간 평균을 낼 수 있도록 index를 부여하는 과정
 	 */
 {
+	cl_sqt->nSkip =0;
 	if (cl_sqt->flag_alloc == 0 ) {
 		omp_set_lock(&write_lock);
 		AllocArray(cl_sqt);
@@ -452,6 +475,7 @@ void ZeroAvSpacetimeCorr ()
 		}
 	}
 	if (flag_t == true) {
+#pragma omp parallel for
 		for (nt = 0; nt < nCTime; nt ++) {
 			rrMSDAv[nt] = 0.; rrMQDAv[nt] = 0.;
 			rrCvvAv[nt] = 0.; rrCmmAv[nt] = 0.;
@@ -504,8 +528,7 @@ void EvalOtherInformation ()
 
 void prePrintProcess () 
 {
-	size_t n_scale = sizeof(coordi_list)/sizeof(coordi3);
-	real scale_factor = 1./(n_scale*nPtls*countCorrAv);
+	real scale_factor = 1./(3.0*nPtls*countCorrAv);
 	if (flag_f == true) {
 #pragma omp parallel for
 		for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
@@ -573,92 +596,90 @@ void PrintSpacetimeCorr (FILE *fp)
 {
 
 	extern real kVal;
-	int  nType,  k2, nr;
+	size_t k2;
+	int  nType,   nr;
 	//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
 	char *header[] = {
-		"full-density"   	 ,                        // 0
-		"self-density"			,                       // 1
-		"cross-density" 		,                       // 2
+		"full-density",  // 0
+		"self-density",  // 1
+		"cross-density", // 2
 		"self-vanHove"                              // 3
 	};
 
-	if (flag_f == true) {
-		fprintf (fp, "%s\n",txtCorr);
-		//for (nType = 0; k < 3; k ++) {
-		for (k2 = 0; k2 < sizeof(header)/ sizeof(char*); k2 ++) {
-			/* 		fprintf (fp, "%s", header[nType]);
-			 * 		for (j = 0; j < nCSpatial; j ++)
-			 * 			fprintf (fp, " %7.3f", kVal*(j+1));
-			 * 		fprintf (fp, "\n");
-			 */
+	fprintf (fp, "%s\n",txtCorr);
+	for (k2 = 0; k2 < sizeof(header)/ sizeof(char*); k2 ++) {
 
-			//    EvalOtherInformation ();
-			fprintf (fp, "# %s %7.3f %7.3f %7.3f\n", header[k2] , kVal, 1.0*deltaT, rVal);
-			switch ( k2) {
-				case 0: 
-					/*!-----------------------------------------------------------------------------
-					 *  avF_qq2[AVDOF*i+nType][k] -> F(q_i,t_k) 
-					 *-----------------------------------------------------------------------------*/
-					nType= 0;
-					for (int nt = 0; nt < nCTime; nt ++) {
-						/* 			deltaT = n *1. * deltaT;
-						 * 			fprintf (fp, "%7.3f", deltaT);
-						 */
-						for (int nk = 0; nk < nCSpatial; nk ++){
-							fprintf (fp, " %8.4e", avF_qq2[AVDOF * nk + nType][nt]);
-						}
-						fprintf (fp, "\n");
-					} 
-					break;
-					/*-----------------------------------------------------------------------------
-					 *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) 
-					 *-----------------------------------------------------------------------------*/
-				case 1: 
-					nType =  0;
-					for (int nt = 0; nt < nCTime; nt ++) {
-						/* 			deltaT = n *1. * deltaT;
-						 * 			fprintf (fp, "%7.3f", deltaT);
-						 */
-						for (int nr = 0; nr < nCSpatial; nr ++){
-							fprintf (fp, " %8.4e", avF_s_qq2[AVDOF * nr + nType][nt]);
-						}
-						fprintf (fp, "\n");
-					} 
-					break;
-					/*-----------------------------------------------------------------------------
-					 *  avF_d_qq2[3*i+nType][j] -> F_d(q_i,t_j) 
-					 *  magnetic
-					 *-----------------------------------------------------------------------------*/
-				case 2:
-					nType = 0;
-					for (int nt = 0; nt < nCTime; nt ++) {
-						/* 			deltaT = n *1. * deltaT;
-						 * 			fprintf (fp, "%7.3f", deltaT);
-						 */
-						for (int nr = 0; nr < nCSpatial; nr ++){
-							fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
-						}
-						fprintf (fp, "\n");
-					} 
-					break;
-				case 3: 
-					//        fprintf (fp, "#van Hove function\n");
-
-					for (int nt = 0; nt < nCTime; nt ++) {
-						for ( nr=0; nr<nCSpatial; nr++)  {
-							fprintf (fp, " %8.4e", avDrTable[nr][nt] );
-						}
-						fprintf (fp, "\n");
+		//    EvalOtherInformation ();
+		fprintf (fp, "# %s %7.3f %7.3f %7.3f\n", 
+				header[k2] , kVal, 
+				(nCSkip+1)*deltaT, 
+				rVal);
+		switch ( k2) {
+			case 0: 
+/*!-----------------------------------------------------------------------------
+*  avF_qq2[AVDOF*i+nType][k] -> F(q_i,t_k) 
+*-----------------------------------------------------------------------------*/
+				nType= 0;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nk = 0; nk < nCSpatial; nk ++){
+						fprintf (fp, " %8.4e", avF_qq2[AVDOF * nk + nType][nt]);
 					}
-					break;
-			}
-			fprintf (fp, "\n");
+					fprintf (fp, "\n");
+				} 
+				break;
+				/*-----------------------------------------------------------------------------
+				 *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) 
+				 *-----------------------------------------------------------------------------*/
+			case 1: 
+				nType =  0;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nr = 0; nr < nCSpatial; nr ++){
+						fprintf (fp, " %8.4e", 
+								avF_s_qq2[AVDOF * nr + nType][nt]);
+					}
+					fprintf (fp, "\n");
+				} 
+				break;
+/*-----------------------------------------------------------------------------
+*  avF_d_qq2[3*i+nType][j] -> F_d(q_i,t_j) 
+*  magnetic
+*-----------------------------------------------------------------------------*/
+			case 2:
+				nType = 0;
+				for (int nt = 0; nt < nCTime; nt ++) {
+					/* 			deltaT = n*(nCSkip+1) *1. * deltaT;
+					 * 			fprintf (fp, "%7.3f", deltaT);
+					 */
+					for (int nr = 0; nr < nCSpatial; nr ++){
+						fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
+					}
+					fprintf (fp, "\n");
+				} 
+				break;
+			case 3: 
+				//        fprintf (fp, "#van Hove function\n");
+
+				for (int nt = 0; nt < nCTime; nt ++) {
+					for ( nr=0; nr<nCSpatial; nr++)  {
+						fprintf (fp, " %8.4e", avDrTable[nr][nt] );
+					}
+					fprintf (fp, "\n");
+				}
+				break;
 		}
+		fprintf (fp, "\n");
 	}
 }
+
 void PrintSpacetimeCorr_binary (FILE *fp)
 	/*!
-	 *  \brief  결과를 출력하는 함수
+	 *  \brief  결과를 binary형태로 출력함
 	 *
 	 *  \param  fp output file descriptor
 	 */
@@ -675,47 +696,35 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 		"self-vanHove"                              // 3
 	};
 	int nTypes = sizeof(header)/ sizeof(char*);
-	fwrite (txtCorr,sizeof(char),strlen(txtCorr),fp);
-	fwrite (&nTypes,sizeof(int) ,1,fp);
-//	fwrite (fp, "%s\n",txtCorr);
-	//for (nType = 0; k < 3; k ++) {
-	for (k2 = 0; k2 < nTypes; k2 ++) {
-		/* 		fprintf (fp, "%s", header[nType]);
-		 * 		for (j = 0; j < nCSpatial; j ++)
-		 * 			fprintf (fp, " %7.3f", kVal*(j+1));
-		 * 		fprintf (fp, "\n");
-		 */
+	int header_txtCorr = strlen(txtCorr);
 
-		//    EvalOtherInformation ();
+	fwrite (header_txtCorr,sizeof(int),1,fp);
+	fwrite (txtCorr,1,header_txtCorr,fp);
+
+	fwrite (&nTypes,sizeof(int) ,1,fp);
+	for (k2 = 0; k2 < nTypes; k2 ++) {
+
 		real col2 =  kVal; 
-		real col3 = 1.0*deltaT; 
+		real col3 = 1.0*deltaT*(nCSkip+1); 
 		real col4 = rVal; 
-		fwrite(header[k2],sizeof(char), strlen(header[k2]), fp);
+		int length = strlen(header[k2]);
+		fwrite(&length, sizeof(int),1,fp);
+		fwrite(header[k2],sizeof(char), length, fp);
 
 		fwrite(&col2, sizeof(real),1,fp);
 		fwrite(&col3, sizeof(real),1,fp);
 		fwrite(&col4, sizeof(real),1,fp);
 
-/* 		fprintf (fp, "# %s %7.3f %7.3f %7.3f\n", header[k2] , kVal, 1.0*deltaT, rVal);
- */
 		switch ( k2) {
 			case 0: 
-				/*!-----------------------------------------------------------------------------
-				 *  avF_qq2[AVDOF*i+nType][k] -> F(q_i,t_k) 
-				 *-----------------------------------------------------------------------------*/
+/*!-----------------------------------------------------------------------------
+*  avF_qq2[AVDOF*i+nType][k] -> F(q_i,t_k) 
+*-----------------------------------------------------------------------------*/
 				nType= 0;
 				for (int nt = 0; nt < nCTime; nt ++) {
-					/* 			deltaT = n *1. * deltaT;
-					 * 			fprintf (fp, "%7.3f", deltaT);
-					 */
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 					}
-/* 					for (int nk = 0; nk < nCSpatial; nk ++){
- * 						fprintf (fp, " %8.4e", avF_qq2[AVDOF * nk + nType][nt]);
- * 					}
- * 					fprintf (fp, "\n");
- */
 				} 
 				break;
 /*-----------------------------------------------------------------------------
@@ -724,17 +733,9 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 			case 1: 
 				nType =  0;
 				for (int nt = 0; nt < nCTime; nt ++) {
-					/* 			deltaT = n *1. * deltaT;
-					 * 			fprintf (fp, "%7.3f", deltaT);
-					 */
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avF_s_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 					}
-/* 					for (int nr = 0; nr < nCSpatial; nr ++){
- * 						fprintf (fp, " %8.4e", avF_s_qq2[AVDOF * nr + nType][nt]);
- * 					}
- * 					fprintf (fp, "\n");
- */
 				} 
 				break;
 /*-----------------------------------------------------------------------------
@@ -744,40 +745,21 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 			case 2:
 				nType = 0;
 				for (int nt = 0; nt < nCTime; nt ++) {
-					/* 			deltaT = n *1. * deltaT;
-					 * 			fprintf (fp, "%7.3f", deltaT);
-					 */
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avF_d_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 					}
-/* 					for (int nr = 0; nr < nCSpatial; nr ++){
- * 						fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
- * 					}
- * 					fprintf (fp, "\n");
- */
 				} 
 				break;
 			case 3: 
-				//        fprintf (fp, "#van Hove function\n");
-
+//        fprintf (fp, "#van Hove function\n");
 				for (int nt = 0; nt < nCTime; nt ++) {
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avDrTable[nr][nt]), sizeof(real),1,fp);
 					}
-/* 					for ( nr=0; nr<nCSpatial; nr++)  {
- * 						fprintf (fp, " %8.4e", avDrTable[nr][nt] );
- * 					}
- * 					fprintf (fp, "\n");
- */
 				}
 				break;
 		}
-/* 		fprintf (fp, "\n");
- */
 	}
-/* 	void PrintEtc();
- * 	PrintEtc ();
- */
 }
 void PrintEtc () {
 
@@ -791,28 +773,16 @@ void PrintEtc () {
 	char filename6[100];
 	char filename_stress[100];
 	int nfile = 0;
-	sprintf(filename1, "Dt%03d.info",nfile);
-	sprintf(filename_stress, "Stress%03d.info",nfile);
-	sprintf(filename2, "vanHove%03d.info",nfile);
-	sprintf(filename3, "SSF%03d.info",nfile);
-	sprintf(filename4, "C2_v_rho%03d.info",nfile);
-	sprintf(filename5, "C2_mu_rho%03d.info",nfile);
-	sprintf(filename6, "C2_mu_mu%03d.info",nfile);
-	nfile++;
-	//printf( "access(%s) -> return %d", filename1, access(filename1,F_OK));
-	//		
-	//		{
-	//			while( 0 == access(filename1,F_OK) ) {
-	//				/* 		fprintf(stderr, "Files are  exist at least . (%03d) \n", nfile);
-	//				 * 		sleep(1);
-	//				 */
-	//				nfile++;
-	//				sprintf(filename1, "Dt%03d.info",nfile);
-	//				sprintf(filename2, "vanHove%03d.info",nfile);
-	//				sprintf(filename3, "SSF%03d.info",nfile);
-	//			}
-	//		}
-
+	do {
+		sprintf(filename1, "Dt%03d.info.%s",nfile,datetime_data);
+		sprintf(filename_stress, "Stress%03d.info.%s",nfile,datetime_data);
+		sprintf(filename2, "vanHove%03d.info.%s",nfile,datetime_data);
+		sprintf(filename3, "SSF%03d.info.%s",nfile,datetime_data);
+		sprintf(filename4, "C2_v_rho%03d.info.%s",nfile,datetime_data);
+		sprintf(filename5, "C2_mu_rho%03d.info.%s",nfile,datetime_data);
+		sprintf(filename6, "C2_mu_mu%03d.info.%s",nfile,datetime_data);
+		nfile++;
+	} while( 0 == access(filename1,F_OK) ) ;
 	/* 	FILE* fp_Dq = fopen(filename1,"w");
 	 * 	fprintf (fp_Dq, "# dt = %7.3f\n", deltaT);
 	 * 	for (j = 0; j < nCSpatial; j ++) {
@@ -867,7 +837,7 @@ void PrintEtc () {
 
 
 		for ( int  nt = 0; nt < nCTime; nt += 1 ) {
-			real tVal = nt * deltaT;
+			real tVal = nt * deltaT* (nCSkip+1);
 			fprintf (fp_stress, "%8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g \n", 
 					tVal,  
 					rrMSR2_VR_Av_dig[nt], rrMSR2_VR_Av_offdig[nt]
@@ -885,12 +855,14 @@ void PrintEtc () {
 
 	if (flag_t == true) {
 		FILE* fp_Dt = fopen(filename1,"w");
-		fprintf (fp_Dt, "#time MSD msdx msdy msdz D(t) MQD Cvv Cmm MSDCM Cvcmvcm\n");
+		fprintf (fp_Dt, "#time MSD msdx msdy msdz D(t) anotherform MQD Cvv Cmm MSDCM Cvcmvcm\n");
 		fprintf (stderr, "print time correlation \n");
 
-		real fac = 1./( 2.* deltaT * DIM * 2);
+		real fac = 1./( 2.* deltaT* (nCSkip+1) * DIM * 2);
 		int nr=0;
 		rrDt[nr] = fac*(-rrMSDAv[nr+2]  +4.*rrMSDAv[nr+1] - 3.* rrMSDAv[nr]);
+
+#pragma omp parallel for
 		for ( nr = 1; nr < nCTime-1; nr += 1 ) {
 			rrDt[nr] = fac*(rrMSDAv[nr+1]  -rrMSDAv[nr-1] );
 		}
@@ -899,11 +871,12 @@ void PrintEtc () {
 
 
 		for ( int  nt = 0; nt < nCTime; nt += 1 ) {
-			real tVal = nt * deltaT;
-			fprintf (fp_Dt, "%8.4f %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g \n", 
+			real tVal = nt * deltaT* (nCSkip+1);
+			real anotherDt =   rrMSDAv[nt]/(  tVal * DIM * 2);
+			fprintf (fp_Dt, "%8.4f %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g \n", 
 					tVal, rrMSDAv[nt] , 
 					rrMSR1_R_Av[nt].x, rrMSR1_R_Av[nt].y, rrMSR1_R_Av[nt].z,
-					rrDt[nt], rrMQDAv[nt]
+					rrDt[nt], anotherDt,rrMQDAv[nt]
 					, rrCvvAv[nt] , rrCmmAv[nt]
 					, rrMSDCMAv[nt], rrCvcmvcmAv[nt]
 					); 
@@ -1002,7 +975,6 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 		for (int k = 0; k < N_AXIS; k ++) {          
 			real b,c,s,c0,c1,s1,c2,s2, kv,km;
 			
-//			coordi3* c3=&coordi_list[k];
 			for (int m = 0; m < nCSpatial; m ++) {  
 			  const int 	markerR = (nCSpatial* DOF)*k + DOF*m +0;
 			  const int 	markerI = (nCSpatial* DOF)*k + DOF*m +1;
@@ -1109,6 +1081,7 @@ void SetWaitedTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw)
 	}
 
 	if (flag_t == true) {
+#pragma omp parallel for
 		for (int n=0; n<nPtls; n++) {
 			tBuf_tw->orgR[n].x = snap->atoms[n].x;
 			tBuf_tw->orgR[n].y = snap->atoms[n].y;
@@ -1142,7 +1115,8 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 	/*------------------------------
 	 *  Zero initializing
 	 *-----------------------------*/
-	
+	if (cl_sqt == NULL )
+		exit(1);
 	if (flag_t == true) {
 		tBuf_tw->rrMSD[subtime]= 0.;
 		tBuf_tw->rrMQD[subtime]= 0.;
@@ -1179,6 +1153,7 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		VecR3 sum_vi= {0,0,0};
 		VecR3 sum_vj= {0,0,0};// t_w
 		real Cvcmvcm=0, displacement_cm;
+#pragma omp parallel for
 		for (int n=0; n<nPtls; n++) {
 			VecR3 dr;
 			real dx2,dy2,dz2,dr2,Cvv,Cmm;
@@ -1378,6 +1353,10 @@ void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 	 */
 {
 	extern real kVal;
+	if( cl_sqt->nSkip < nCSkip) {
+		cl_sqt->nSkip ++;
+		return;
+	}
 	void EvalOneTimeCorr(MakeSqtClass* cl_sqt);
 	TBuf* tBuf = cl_sqt->tBuf;
 	Snapshot* snap = cl_sqt->snap;
@@ -1411,6 +1390,7 @@ void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 		++ tBuf[nb].count;
 	}
 	AccumSpacetimeCorr (cl_sqt);
+	cl_sqt->nSkip =0;
 }
 void AllocMemCheck ()
 {
@@ -1576,7 +1556,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 	fprintf(stderr, "Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
 }
 
-int GetNameList (int argc, char **argv)
+int GetNameList ()
 	/*!
 	 *  \brief    from book of rapaport 
 	 *  	ex)	  input.file	
@@ -1586,12 +1566,16 @@ int GetNameList (int argc, char **argv)
 	 *  			 Well defined.
 	 */
 {
-	int  j, k, match, ok;
+	size_t  j, k;
+	int match, ok;
 	char buff[100], *token;
 	FILE *fp;
 	strcpy (buff, inputFilename);
 	//	strcpy (buff, argv[0]);
 	//	strcat (buff, ".in");
+	//default value
+	nCSkip=0;
+
 	if ((fp = fopen (buff, "r")) == 0)  {
 		fp = fopen(buff, "w");
 		for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
@@ -1691,7 +1675,7 @@ void PrintNameList2File (FILE *fp)
 	 *  \param  fp  FILE* file descriptor
 	 */
 {
-	int j, k;
+	size_t j, k;
 	fprintf (fp, "NameList -- data\n");
 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 		fprintf (fp, "%s\t", nameList[k].vName);
