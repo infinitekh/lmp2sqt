@@ -1316,10 +1316,12 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		displacement_cm+= (sum_ri.z - sum_rj.z)*(sum_ri.z - sum_rj.z);
 		tBuf_tw->rrMSDCM[subtime] += displacement_cm;
 
-		Cvcmvcm = sum_vi.x * sum_vj.x;
-		Cvcmvcm += sum_vi.y * sum_vj.y;
-		Cvcmvcm += sum_vi.z * sum_vj.z;
-		tBuf_tw->rrCvcmvcm[subtime] += Cvcmvcm;
+		if (flag_velocity == true) {
+			Cvcmvcm = sum_vi.x * sum_vj.x;
+			Cvcmvcm += sum_vi.y * sum_vj.y;
+			Cvcmvcm += sum_vi.z * sum_vj.z;
+			tBuf_tw->rrCvcmvcm[subtime] += Cvcmvcm;
+		}
 
 	}
 }
