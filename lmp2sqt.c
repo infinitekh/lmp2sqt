@@ -34,7 +34,7 @@
 
 
 #define DIM 3
-#define flagSelf 1
+//#define flagSelf 1
 
 typedef enum {N_I, N_R} VType;
 typedef struct {
@@ -97,8 +97,12 @@ NameList nameList[] = DATALIST;
 
 
 bool flag_f=false;
+bool flag_F=false;
 bool flag_t=false;
 bool flag_s=false;
+
+bool flag_magnet=false;
+bool flag_velocity=false;
 
 char inputFilename[100]= "in.lmp2sqt";
 void UpdateNameList ();
@@ -135,23 +139,35 @@ int main(int argc, char** argv) {
 				"			space-time, twotime, stress etc...\n"
 				"		-t) only twotime correlation \n"
 				"		-s) only twotime correlation + stress tensor \n"
+				"		-V) using velocity correlation  \n"
+				"		-M) using magnet correlation  \n"
 				"   -i) argment filename for input variable \n"
 				, argv[0]);
 		return EXIT_FAILURE;
 	}
 	while (1) {
-		opt = getopt (argc,argv, "tfsi:");
+		opt = getopt (argc,argv, "tfFsVMi:");
 		if (opt == -1) break;
 		switch (opt) {
 			case 't' :
 				puts("flag_t on : two time correlation");
 				flag_t = true; break;
 			case 'f' :
-				puts("flag_f on : space time correlation ");
+				puts("flag_f on : collective space time correlation ");
 				flag_f = true; break;
+			case 'F' :
+				puts("flag_F on : self-collective space time correlation ");
+				puts("flag_f on : collective space time correlation ");
+				flag_f= flag_F = true; break;
 			case 's' :
 				puts("flag_s on : stress tensor calculation on");
 				flag_s = true; break;
+			case 'V' :
+				puts("flag_velocity on : velocity correlation on");
+				flag_velocity = true; break;
+			case 'M' :
+				puts("flag_magnet on : magnet correlation on");
+				flag_magnet = true; break;
 			case 'i' :
 				strcpy(inputFilename, optarg);
 				printf("intput filename : %s\n" ,inputFilename);
@@ -161,10 +177,13 @@ int main(int argc, char** argv) {
 			default:
 				printf("%s -f -t -s filename1 filename 2 ... \n"
 						"	options: \n"
-						"		-f) full calculation required long time and large memory \n"
+						"		-f) collective full calculation required long time and large memory \n"
+						"		-F) collective self calculation required long time and large memory \n"
 						"			space-time, twotime, stress etc...\n"
 						"		-t) only twotime correlation \n"
 						"		-s) only twotime correlation + stress tensor \n"
+						"		-V) velocity correlation \n"
+						"		-M) magnet correlation \n"
 						"   -i) argment filename for input variable \n"
 , argv[0]
 						);
@@ -180,6 +199,8 @@ int main(int argc, char** argv) {
 				"			space-time, twotime, stress etc...\n"
 				"		-t) only twotime correlation \n"
 				"		-s) only twotime correlation + stress tensor \n"
+				"		-V) velocity correlation \n"
+				"		-M) magnet correlation \n"
 				"   -i) argment filename for input variable \n"
 				, argv[0]);
 		return EXIT_FAILURE;
@@ -381,12 +402,14 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 				for (k = 0; k < AVDOF * nCSpatial; k ++) {
 					for (n = 0; n < nCTime; n ++) {
 						avF_qq2[k][n] += pt->F_qq2[k][n];
-						avF_s_qq2[k][n] += pt->F_s_qq2[k][n];
-						avF_d_qq2[k][n] += pt->F_d_qq2[k][n];
-						if(1){
+						if (flag_F == true ) {
+							avF_s_qq2[k][n] += pt->F_s_qq2[k][n];
+							avF_d_qq2[k][n] += pt->F_d_qq2[k][n];
+						}
+						if(flag_velocity==true){
 							avC2_v_rho[k][n] += pt->C2_v_rho[k][n];
 						}
-						if(1){
+						if(flag_magnet==true){
 							avC2_mu_rho[k][n] += pt->C2_mu_rho[k][n];
 							avC2_mu_mu[k][n] += pt->C2_mu_mu[k][n];
 						}
@@ -464,8 +487,10 @@ void ZeroAvSpacetimeCorr ()
 		for (nk = 0; nk < AVDOF * nCSpatial; nk ++) {
 			for (nt = 0; nt < nCTime; nt ++) {
 				avF_qq2[nk][nt] = 0.;
-				avF_s_qq2[nk][nt] = 0.;
-				avF_d_qq2[nk][nt] = 0.;
+				if (flag_F == true) {
+					avF_s_qq2[nk][nt] = 0.;
+					avF_d_qq2[nk][nt] = 0.;
+				}
 			}
 		}
 		for (nt = 0; nt < nCTime; nt ++) {
@@ -478,9 +503,14 @@ void ZeroAvSpacetimeCorr ()
 #pragma omp parallel for
 		for (nt = 0; nt < nCTime; nt ++) {
 			rrMSDAv[nt] = 0.; rrMQDAv[nt] = 0.;
-			rrCvvAv[nt] = 0.; rrCmmAv[nt] = 0.;
-			rrCvcmvcmAv[nt] = 0.; 
 			rrMSDCMAv[nt] = 0.;
+			if (flag_velocity == true) {
+				rrCvvAv[nt] = 0.; 
+				rrCvcmvcmAv[nt] = 0.; 
+			}
+			if (flag_magnet == true) {
+				rrCmmAv[nt] = 0.;
+			}
 
 			if (flag_s == true) {
 				real_tensor_zero_r1( &rrMSR1_R_Av[nt] );
@@ -534,9 +564,13 @@ void prePrintProcess ()
 		for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
 			for (int nt = 0; nt < nCTime; nt ++){
 				avF_qq2[nr][nt] *= scale_factor;
-				avF_s_qq2[nr][nt] *= scale_factor;
-				avF_d_qq2[nr][nt] *= 0.5*scale_factor;
-				avC2_v_rho[nr][nt] *= scale_factor;
+				if (flag_F == true) {
+					avF_s_qq2[nr][nt] *= scale_factor;
+					avF_d_qq2[nr][nt] *= 0.5*scale_factor;
+				}
+				if (flag_velocity == true ) {
+					avC2_v_rho[nr][nt] *= scale_factor;
+				}
 			}
 		}
 #pragma omp parallel for
@@ -564,8 +598,10 @@ void prePrintProcess ()
 			rrMSDAv[nt] *= scale_factor;
 			rrMSDCMAv[nt] *= scale_factor;
 			rrMQDAv[nt] *= scale_factor;
-			rrCvvAv[nt] *= factor_Cvv;
-			rrCvcmvcmAv[nt] *= factor_Cvcmvcm;
+			if (flag_velocity == true ) {
+				rrCvvAv[nt] *= factor_Cvv;
+				rrCvcmvcmAv[nt] *= factor_Cvcmvcm;
+			}
 			/*!
 			 *  \brief  if all mass of particles is same value
 			 */
@@ -634,33 +670,37 @@ void PrintSpacetimeCorr (FILE *fp)
 				 *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) 
 				 *-----------------------------------------------------------------------------*/
 			case 1: 
-				nType =  0;
-				for (int nt = 0; nt < nCTime; nt ++) {
-					/* 			deltaT = n *1. * deltaT;
-					 * 			fprintf (fp, "%7.3f", deltaT);
-					 */
-					for (int nr = 0; nr < nCSpatial; nr ++){
-						fprintf (fp, " %8.4e", 
-								avF_s_qq2[AVDOF * nr + nType][nt]);
-					}
-					fprintf (fp, "\n");
-				} 
+				if ( flag_F == true) {
+					nType =  0;
+					for (int nt = 0; nt < nCTime; nt ++) {
+						/* 			deltaT = n *1. * deltaT;
+						 * 			fprintf (fp, "%7.3f", deltaT);
+						 */
+						for (int nr = 0; nr < nCSpatial; nr ++){
+							fprintf (fp, " %8.4e", 
+									avF_s_qq2[AVDOF * nr + nType][nt]);
+						}
+						fprintf (fp, "\n");
+					} 
+				}
 				break;
 /*-----------------------------------------------------------------------------
 *  avF_d_qq2[3*i+nType][j] -> F_d(q_i,t_j) 
 *  magnetic
 *-----------------------------------------------------------------------------*/
 			case 2:
-				nType = 0;
-				for (int nt = 0; nt < nCTime; nt ++) {
-					/* 			deltaT = n*(nCSkip+1) *1. * deltaT;
-					 * 			fprintf (fp, "%7.3f", deltaT);
-					 */
-					for (int nr = 0; nr < nCSpatial; nr ++){
-						fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
-					}
-					fprintf (fp, "\n");
-				} 
+				if (flag_F==true) {
+					nType = 0;
+					for (int nt = 0; nt < nCTime; nt ++) {
+						/* 			deltaT = n*(nCSkip+1) *1. * deltaT;
+						 * 			fprintf (fp, "%7.3f", deltaT);
+						 */
+						for (int nr = 0; nr < nCSpatial; nr ++){
+							fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
+						}
+						fprintf (fp, "\n");
+					} 
+				}
 				break;
 			case 3: 
 				//        fprintf (fp, "#van Hove function\n");
@@ -731,22 +771,26 @@ void PrintSpacetimeCorr_binary (FILE *fp)
  *  avF_s_qq2[3*i+nType][j] -> F_s(q_i,t_j) 
  *-----------------------------------------------------------------------------*/
 			case 1: 
+				if (flag_F==true) {
 				nType =  0;
 				for (int nt = 0; nt < nCTime; nt ++) {
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avF_s_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 					}
 				} 
+				}
 				break;
 /*-----------------------------------------------------------------------------
  *  avF_d_qq2[3*i+nType][j] -> F_d(q_i,t_j) 
  *  magnetic
  *-----------------------------------------------------------------------------*/
 			case 2:
-				nType = 0;
-				for (int nt = 0; nt < nCTime; nt ++) {
-					for (int nk = 0; nk < nCSpatial; nk ++){
-						fwrite( &(avF_d_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+				if (flag_F==true) {
+					nType = 0;
+					for (int nt = 0; nt < nCTime; nt ++) {
+						for (int nk = 0; nk < nCSpatial; nk ++){
+							fwrite( &(avF_d_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+						}
 					}
 				} 
 				break;
@@ -809,19 +853,28 @@ void PrintEtc () {
 
 	if (flag_f == true) {
 		FILE* fp_SSF = fopen(filename3,"w");
-		FILE* fp_C2vrho = fopen(filename4,"w");
-		FILE* fp_C2murho = fopen(filename5,"w");
-		FILE* fp_C2mumu = fopen(filename6,"w");
+		FILE *fp_C2mumu, *fp_C2vrho, * fp_C2murho;
+		if (flag_velocity == true) {
+			fp_C2vrho = fopen(filename4,"w");
+		}
+		if (flag_magnet == true) {
+			fp_C2murho = fopen(filename5,"w");
+			fp_C2mumu = fopen(filename6,"w");
+		}
 		for (int nr = 0; nr < nCSpatial; nr ++) {
-			fprintf (fp_C2vrho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
-					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-							avC2_v_rho[(AVDOF*nr)+0][0]);
-			fprintf (fp_C2murho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
-					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-							avC2_mu_rho[(AVDOF*nr)+0][0]);
-			fprintf (fp_C2mumu, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
-					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-							avC2_mu_mu[(AVDOF*nr)+0][0]);
+			if (flag_velocity == true) {
+				fprintf (fp_C2vrho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
+						//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
+								avC2_v_rho[(AVDOF*nr)+0][0]);
+			}
+			if (flag_magnet == true) {
+				fprintf (fp_C2murho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
+						//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
+								avC2_mu_rho[(AVDOF*nr)+0][0]);
+				fprintf (fp_C2mumu, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
+						//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
+								avC2_mu_mu[(AVDOF*nr)+0][0]);
+			}
 			fprintf (fp_SSF, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
 					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
 							avF_qq2[(AVDOF*nr)+0][0]);
@@ -855,7 +908,14 @@ void PrintEtc () {
 
 	if (flag_t == true) {
 		FILE* fp_Dt = fopen(filename1,"w");
-		fprintf (fp_Dt, "#time MSD msdx msdy msdz D(t) anotherform MQD Cvv Cmm MSDCM Cvcmvcm\n");
+		fprintf (fp_Dt, "#time MSD msdx msdy msdz D(t) anotherform MQD");
+		if (flag_velocity==true) {
+			fprintf (fp_Dt, " Cvv Cvcmvcm");
+		}
+		if (flag_magnet==true) {
+			fprintf (fp_Dt, " Cmm");
+		}
+		fprintf ( fp_Dt, " MSDCM\n");
 		fprintf (stderr, "print time correlation \n");
 
 		real fac = 1./( 2.* deltaT* (nCSkip+1) * DIM * 2);
@@ -872,14 +932,24 @@ void PrintEtc () {
 
 		for ( int  nt = 0; nt < nCTime; nt += 1 ) {
 			real tVal = nt * deltaT* (nCSkip+1);
-			real anotherDt =   rrMSDAv[nt]/(  tVal * DIM * 2);
-			fprintf (fp_Dt, "%8.4f %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g \n", 
+			real anotherDt=0;
+			if( nt !=0 ) { 
+				anotherDt =   rrMSDAv[nt]/(  tVal * DIM * 2);
+			}
+//		fprintf (fp_Dt, "#time MSD msdx msdy msdz D(t) anotherform MQD");
+			fprintf (fp_Dt, "%8.4f %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g", 
 					tVal, rrMSDAv[nt] , 
 					rrMSR1_R_Av[nt].x, rrMSR1_R_Av[nt].y, rrMSR1_R_Av[nt].z,
 					rrDt[nt], anotherDt,rrMQDAv[nt]
-					, rrCvvAv[nt] , rrCmmAv[nt]
-					, rrMSDCMAv[nt], rrCvcmvcmAv[nt]
 					); 
+			if (flag_velocity==true) {
+				fprintf (fp_Dt, " %8.4f %8.4g", 
+						rrCvvAv[nt] ,  rrCvcmvcmAv[nt]);
+			}
+			if (flag_magnet==true) {
+				fprintf (fp_Dt, " %8.4f", rrCmmAv[nt]);
+			}
+			fprintf (fp_Dt, " %8.4f\n", rrMSDCMAv[nt]);
 		}
 		fclose(fp_Dt); 
 	}
@@ -912,10 +982,14 @@ void ZeroOneTimeCorr(MakeSqtClass* cl_sqt)
 	real **	rho_d_q1 = tBuf->rho_d_q1;
 	for (int j = 0; j < FDOF * nCSpatial; j ++) {
 		rho_q1[j] = 0.;
-		kvel_q1[j] = 0.;
-		kmu_q1[j] = 0.;
+		if (flag_velocity == true ) {
+			kvel_q1[j] = 0.;
+		}
+		if (flag_magnet == true ) {
+			kmu_q1[j] = 0.;
+		}
 	}
-	if ( flagSelf ) {
+	if ( flag_F == true ) {
 		for (int n=0; n<nPtls; n++) {
 			for (int j = 0; j < FDOF * nCSpatial; j ++) {
 				rho_s_q1[n][j] = 0.;
@@ -1006,13 +1080,13 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 				c = cos( qn*b);
 				s = sin( qn*b);
 #endif
-				if ( 1 ) // velocity is defined 
+				if ( flag_velocity==true ) // velocity is defined 
 				{
 					kv = qn * kVal*  v[k];
 					kvel_q1[markerR] += - kv * s;
 					kvel_q1[markerI] += + kv * c;
 				}
-				if ( 1 ) // magnetization  is defined 
+				if ( flag_magnet == true ) // magnetization  is defined 
 				{
 					km = qn * kVal*  mu[k];
 					kmu_q1[markerR] += - km * s;
@@ -1026,12 +1100,12 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 		for(int nk=0; nk< FDOF * nCSpatial; nk++ ) {
 			rho_q1 [ nk] += rho_s_q1_temp[nk];
 		}
-		if ( flagSelf ) {
+		if ( flag_F == true ) {
 			memcpy(rho_s_q1[n], rho_s_q1_temp, sizeof(real)*FDOF*nCSpatial);
 		}
 	} /* for loop : n<nPtls */
 
-	if ( flagSelf ) {
+	if ( flag_F == true ) {
 		for(int nk=0; nk< FDOF * nCSpatial; nk++ ) {
 			for (int n=0; n<nPtls; n++) {
 				rho_d_q1[n] [ nk] = rho_q1[nk] - rho_s_q1 [n][nk];
@@ -1086,12 +1160,16 @@ void SetWaitedTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw)
 			tBuf_tw->orgR[n].x = snap->atoms[n].x;
 			tBuf_tw->orgR[n].y = snap->atoms[n].y;
 			tBuf_tw->orgR[n].z = snap->atoms[n].z;
-			tBuf_tw->orgV[n].x = snap->atoms[n].vx;
-			tBuf_tw->orgV[n].y = snap->atoms[n].vy;
-			tBuf_tw->orgV[n].z = snap->atoms[n].vz;
-			tBuf_tw->orgMu[n].x = snap->atoms[n].mux;
-			tBuf_tw->orgMu[n].y = snap->atoms[n].muy;
-			tBuf_tw->orgMu[n].z = snap->atoms[n].muz;
+			if (flag_velocity == true ) {
+				tBuf_tw->orgV[n].x = snap->atoms[n].vx;
+				tBuf_tw->orgV[n].y = snap->atoms[n].vy;
+				tBuf_tw->orgV[n].z = snap->atoms[n].vz;
+			}
+			if (flag_magnet == true ) {
+				tBuf_tw->orgMu[n].x = snap->atoms[n].mux;
+				tBuf_tw->orgMu[n].y = snap->atoms[n].muy;
+				tBuf_tw->orgMu[n].z = snap->atoms[n].muz;
+			}
 		}
 	}
 
@@ -1099,9 +1177,13 @@ void SetWaitedTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw)
 //#pragma omp parallel for 
 		for (int j = 0; j < FDOF * nCSpatial; j ++){
 			tBuf_tw->org_rho_q1[j] = rho_q1[j];
-			tBuf_tw->org_kvel_q1[j] = kvel_q1[j];
-			tBuf_tw->org_kmu_q1[j] = kmu_q1[j];
-			if ( flagSelf ) {
+			if (flag_velocity == true) {
+				tBuf_tw->org_kvel_q1[j] = kvel_q1[j];
+			}
+			if (flag_magnet == true) {
+				tBuf_tw->org_kmu_q1[j] = kmu_q1[j];
+			}
+			if ( flag_F == true ) {
 				for (int n=0; n<nPtls; n++) {
 					tBuf_tw->org_rho_s_q1[n][j] = rho_s_q1[n][j];
 					tBuf_tw->org_rho_d_q1[n][j] = rho_d_q1[n][j];
@@ -1291,7 +1373,7 @@ void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 				w = 1.;
 				nav = avMarker;
 				// cos(q*r(t)) cos(q*r(t_w) +sin sin
-				if (flagSelf ) {
+				if ( flag_F ) {
 					for (int n=0; n<nPtls; n++) {
 						tBuf_tw->F_s_qq2[nav][subtime] +=
 							w * (rho_s_q1[n][markerR] * tBuf_tw->org_rho_s_q1[n][markerR] +
@@ -1303,13 +1385,13 @@ void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 									rho_s_q1[n][markerI] * tBuf_tw->org_rho_d_q1[n][markerI]);
 					}
 				}
-				if(1) 
+				if( flag_velocity == true) 
 				{
 					tBuf_tw->C2_v_rho[nav][subtime] +=
 						w * (rho_q1[markerR] * tBuf_tw->org_kvel_q1[markerR] +
 								rho_q1[markerI] * tBuf_tw->org_kvel_q1[markerI]);
 				}
-				if(1) 
+				if( flag_magnet == true) 
 				{
 					tBuf_tw->C2_mu_rho[nav][subtime] +=
 						w * (rho_q1[markerR] * tBuf_tw->org_kmu_q1[markerR] +
@@ -1410,13 +1492,18 @@ void AllocArray (MakeSqtClass* cl_sqt)
 
 	if (flag_global_alloc ==0 ) {
 		if (flag_f == true) {
-			AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			if (flag_F == true) {
+				AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			}
 			AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (avC2_v_rho,  AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (avC2_mu_rho,  AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (avC2_mu_mu,  AVDOF * nCSpatial, nCTime, real);
-
+			if (flag_velocity == true) {
+				AllocMem2 (avC2_v_rho,  AVDOF * nCSpatial, nCTime, real);
+			}
+			if (flag_magnet == true) {
+				AllocMem2 (avC2_mu_rho,  AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (avC2_mu_mu,  AVDOF * nCSpatial, nCTime, real);
+			}
 			AllocMem2 (valDqt,  nCSpatial, nCTime, real);
 			AllocMem2 (valGammaQT,  nCSpatial, nCTime, real);
 		}
@@ -1425,20 +1512,30 @@ void AllocArray (MakeSqtClass* cl_sqt)
 	TBuf* tBuf = cl_sqt->tBuf;
 	if (flag_f == true) {
 		AllocMem (tBuf->rho_q1, FDOF * nCSpatial, real);
-		AllocMem (tBuf->kvel_q1, FDOF * nCSpatial, real);
-		AllocMem (tBuf->kmu_q1, FDOF * nCSpatial, real);
+		if (flag_velocity == true) {
+			AllocMem (tBuf->kvel_q1, FDOF * nCSpatial, real);
+		}
+		if (flag_magnet == true) {
+			AllocMem (tBuf->kmu_q1, FDOF * nCSpatial, real);
+		}
 		for (nb = 0; nb < nCBuffer; nb ++) {
 			TBuf* b = &tBuf[nb];
 			AllocMem (b->org_rho_q1, FDOF * nCSpatial, real);
-			AllocMem (b->org_kvel_q1, FDOF * nCSpatial, real);
-			AllocMem (b->org_kmu_q1, FDOF * nCSpatial, real);
+			if (flag_velocity == true) {
+				AllocMem (b->org_kvel_q1, FDOF * nCSpatial, real);
+				AllocMem2 (b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
+			}
+			if (flag_magnet == true) {
+				AllocMem (b->org_kmu_q1, FDOF * nCSpatial, real);
+				AllocMem2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (b->C2_mu_mu, AVDOF * nCSpatial, nCTime, real);
+			}
 
-			AllocMem2 (b->F_s_qq2, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (b->F_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			if (flag_F == true) {
+				AllocMem2 (b->F_s_qq2, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (b->F_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			}
 			AllocMem2 (b->F_qq2, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
-			AllocMem2 (b->C2_mu_mu, AVDOF * nCSpatial, nCTime, real);
 		}
 	}
 	/*!
@@ -1449,9 +1546,13 @@ void AllocArray (MakeSqtClass* cl_sqt)
 		if (flag_t == true) {
 			AllocMem (rrMSDAv, nCTime, real);
 			AllocMem (rrMSDCMAv, nCTime, real);
-			AllocMem (rrCvvAv, nCTime, real);
-			AllocMem (rrCvcmvcmAv, nCTime, real);
-			AllocMem (rrCmmAv, nCTime, real);
+			if (flag_velocity == true) {
+				AllocMem (rrCvvAv, nCTime, real);
+				AllocMem (rrCvcmvcmAv, nCTime, real);
+			}
+			if (flag_magnet == true) {
+				AllocMem (rrCmmAv, nCTime, real);
+			}
 			AllocMem (rrMQDAv, nCTime, real);
 			AllocMem (rrMSR1_R_Av , nCTime, VecR3);
 			AllocMem (rrDt, nCTime, real);
@@ -1487,7 +1588,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 		AllocMem (tBuf->rho_s_q1_temp, 
 				FDOF * nCSpatial, real);
 
-		if (flagSelf ) {
+		if (flag_F== true ) {
 			AllocMem (tBuf->rho_s_q1, nPtls, real*);
 			AllocMem (tBuf->rho_d_q1, nPtls, real*);
 
@@ -1501,14 +1602,18 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		if (flag_t == true) {
 			AllocMem (tBuf[nb].orgR, nPtls, VecR3);
-			AllocMem (tBuf[nb].orgMu, nPtls, VecR3);
-			AllocMem (tBuf[nb].orgV, nPtls, VecR3);
+			if (flag_magnet == true) {
+				AllocMem (tBuf[nb].orgMu, nPtls, VecR3);
+				AllocMem (tBuf[nb].rrCmm, nCTime, real);
+			}
+			if (flag_velocity == true) {
+				AllocMem (tBuf[nb].orgV, nPtls, VecR3);
+				AllocMem (tBuf[nb].rrCvv, nCTime, real);
+				AllocMem (tBuf[nb].rrCvcmvcm, nCTime, real);
+			}
 			AllocMem (tBuf[nb].rrMSD, nCTime, real);
 			AllocMem (tBuf[nb].rrMSDCM, nCTime, real);
 			AllocMem (tBuf[nb].rrMQD, nCTime, real);
-			AllocMem (tBuf[nb].rrCmm, nCTime, real);
-			AllocMem (tBuf[nb].rrCvv, nCTime, real);
-			AllocMem (tBuf[nb].rrCvcmvcm, nCTime, real);
 			AllocMem (tBuf[nb].rrMSR1_R, nCTime, VecR3);
 			if (flag_s == true) {
 				AllocMem (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
@@ -1517,7 +1622,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 
 		if (flag_f == true) {
 			AllocMem2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
-			if (flagSelf) {
+			if (flag_F) {
 				AllocMem (tBuf[nb].org_rho_s_q1, nPtls, real*);
 				AllocMem (tBuf[nb].org_rho_d_q1, nPtls, real*);
 
