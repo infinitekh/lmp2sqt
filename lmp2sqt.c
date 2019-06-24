@@ -428,8 +428,10 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 					rrMSDAv[nt] += pt->rrMSD[nt];
 					rrMSDCMAv[nt] += pt->rrMSDCM[nt];
 					rrMQDAv[nt] += pt->rrMQD[nt];
-					rrCvvAv[nt] += pt->rrCvv[nt];
-					rrCvcmvcmAv[nt] += pt->rrCvcmvcm[nt];
+					if (flag_velocity == true) {
+						rrCvvAv[nt] += pt->rrCvv[nt];
+						rrCvcmvcmAv[nt] += pt->rrCvcmvcm[nt];
+					}
 					if (flag_s == true) {
 						real_tensor_increase_r1_r1(&rrMSR1_R_Av[nt], 
 								&pt->rrMSR1_R[nt]);
@@ -1202,9 +1204,13 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 	if (flag_t == true) {
 		tBuf_tw->rrMSD[subtime]= 0.;
 		tBuf_tw->rrMQD[subtime]= 0.;
-		tBuf_tw->rrCvv[subtime]= 0.;
-		tBuf_tw->rrCvcmvcm[subtime]= 0.;
-		tBuf_tw->rrCmm[subtime]= 0.;
+		if (flag_velocity == true) {
+			tBuf_tw->rrCvv[subtime]= 0.;
+			tBuf_tw->rrCvcmvcm[subtime]= 0.;
+		}
+		if (flag_magnet == true) {
+			tBuf_tw->rrCmm[subtime]= 0.;
+		}
 		if (flag_s == true) {
 			real_tensor_zero_r1 (&tBuf_tw->rrMSR1_R[subtime]);
 			real_tensor_zero_r2 (&tBuf_tw->rrMSR2_VR[subtime]);
@@ -1242,7 +1248,10 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 			atom* col_i = &(snap->atoms[n]);
 			VecR3* pos_j = &(tBuf_tw->orgR[n]);
 			VecR3* vel_j = &(tBuf_tw->orgV[n]);
-			VecR3* mu_j = &(tBuf_tw->orgMu[n]);
+			VecR3* mu_j;
+			if (flag_magnet == true) {
+				mu_j = &(tBuf_tw->orgMu[n]);
+			}
 
 			sum_ri.x += col_i->x;
 			sum_ri.y += col_i->y;
@@ -1252,25 +1261,31 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 			sum_rj.y += pos_j->y;
 			sum_rj.z += pos_j->z;
 
-			sum_vi.x += col_i->vx;
-			sum_vi.y += col_i->vy;
-			sum_vi.z += col_i->vz;
+			if (flag_velocity == true) {
+				sum_vi.x += col_i->vx;
+				sum_vi.y += col_i->vy;
+				sum_vi.z += col_i->vz;
 
-			sum_vj.x += vel_j->x;
-			sum_vj.y += vel_j->y;
-			sum_vj.z += vel_j->z;
+				sum_vj.x += vel_j->x;
+				sum_vj.y += vel_j->y;
+				sum_vj.z += vel_j->z;
+			}
 
 			dr.x =  col_i->x-pos_j->x ;
 			dr.y =  col_i->y-pos_j->y ;
 			dr.z =  col_i->z-pos_j->z ;
 
-			Cvv = col_i->vx * vel_j->x;
-			Cvv += col_i->vy * vel_j->y;
-			Cvv += col_i->vz * vel_j->z;
+			if (flag_velocity == true) {
+				Cvv = col_i->vx * vel_j->x;
+				Cvv += col_i->vy * vel_j->y;
+				Cvv += col_i->vz * vel_j->z;
+			}
 
-			Cmm = col_i->mux * mu_j->x;
-			Cmm += col_i->muy * mu_j->y;
-			Cmm += col_i->muz * mu_j->z;
+			if (flag_magnet == true) {
+				Cmm = col_i->mux * mu_j->x;
+				Cmm += col_i->muy * mu_j->y;
+				Cmm += col_i->muz * mu_j->z;
+			}
 
 			dx2 = dr.x*dr.x; 
 			dy2 = dr.y*dr.y; 
@@ -1287,8 +1302,12 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 			tBuf_tw->rrMSR1_R[subtime].y += dy2;
 			tBuf_tw->rrMSR1_R[subtime].z += dz2;
 			tBuf_tw->rrMQD[subtime] += dr2*dr2;
-			tBuf_tw->rrCvv[subtime] += Cvv;
-			tBuf_tw->rrCmm[subtime] += Cmm;
+			if (flag_velocity == true) {
+				tBuf_tw->rrCvv[subtime] += Cvv;
+			}
+			if (flag_magnet == true) {
+				tBuf_tw->rrCmm[subtime] += Cmm;
+			}
 
 		} // for  n  in nPtls
 		
