@@ -1643,6 +1643,7 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 	printf("%dByte\n ",Byte);
 	puts("End fake Job!!");
 	
+
 	exit(1);
 
 }
