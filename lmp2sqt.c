@@ -1216,11 +1216,17 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		//F_qq2 0  KSpace
 		for (int k = 0; k < AVDOF * nCSpatial; k ++) {
 			tBuf_tw->F_qq2[k][subtime] = 0.;
-			tBuf_tw->C2_v_rho[k][subtime] = 0.;
-			tBuf_tw->C2_mu_rho[k][subtime] = 0.;
-			tBuf_tw->C2_mu_mu[k][subtime] = 0.;
-			tBuf_tw->F_s_qq2[k][subtime] = 0.;
-			tBuf_tw->F_d_qq2[k][subtime] = 0.;
+			if (flag_velocity == true) {
+				tBuf_tw->C2_v_rho[k][subtime] = 0.;
+			}
+			if (flag_magnet == true) {
+				tBuf_tw->C2_mu_rho[k][subtime] = 0.;
+				tBuf_tw->C2_mu_mu[k][subtime] = 0.;
+			}
+			if (flag_F == true) {
+				tBuf_tw->F_s_qq2[k][subtime] = 0.;
+				tBuf_tw->F_d_qq2[k][subtime] = 0.;
+			}
 		}
 	}
 }
