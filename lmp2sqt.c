@@ -1630,11 +1630,11 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 
 	
 	int nthreads = omp_get_num_threads();
-	mem += part_mem*nthreads;
+	mem += part_mem*(long long int )nthreads;
 	unsigned int GiB,MiB,KiB,Byte;
 	Byte = mem % 1024; mem /= 1024;
 	KiB = mem % 1024; mem /= 1024;
-	MiB = mem % 1024; mem /= 1024;
+	MiB = mem % 1024; 
 	GiB = mem/1024;
 	printf("The Number of Threads = %d \n",nthreads);
 	if (GiB >0 ) printf("%dGiB ",GiB);
