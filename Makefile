@@ -1,9 +1,10 @@
 CC=gcc
 MAJOR = 1
-MINOR = 6
+MINOR = 7
 BUILD = $(shell date +"%y%m%d.%H%M")
 VERSIONA = "\"$(MAJOR).$(MINOR).$(BUILD)\""
 VERSION = "$(MAJOR).$(MINOR).$(BUILD)"
+VERSIONR = "$(MAJOR).$(MINOR)"
 CPPFLAGS = -DVERSION=$(VERSIONA)
 
 

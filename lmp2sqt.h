@@ -123,6 +123,12 @@ void* unused_pointer;
 int ununused_value;
 long long int ll_mem_size=0;
 int ErrorAllocMem=0; 
+#define AmountAllocMem(a, n, t)                       \
+  ((long long)n* sizeof(t))
+#define AmountAllocMem2(a, n1, n2, t)                        \
+	(AmountAllocMem (a, n1, t *)+ \
+	 AmountAllocMem (a[0], (n1) * (n2), t))
+
 #define AllocMem(a, n, t)                       \
 	a = (t *) malloc ((n) * sizeof (t));      \
 	if (a == NULL ) ErrorAllocMem=1;          \
@@ -205,6 +211,7 @@ void EvalOtherInformation ();
 void PrintProcess ( MakeSqtClass* );
 void PrintSpacetimeCorr (FILE *fp);
 void EvalSpacetimeCorr (MakeSqtClass*);
+void AmountAllocArray(MakeSqtClass*);
 void AllocArray(MakeSqtClass* );
 void AllocMemCheck ();
 void Alloc_more(MakeSqtClass* );

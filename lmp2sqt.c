@@ -100,6 +100,7 @@ bool flag_f=false;
 bool flag_F=false;
 bool flag_t=false;
 bool flag_s=false;
+bool flag_d=false;
 
 bool flag_magnet=false;
 bool flag_velocity=false;
@@ -131,22 +132,27 @@ int main(int argc, char** argv) {
 	timeinfo   =  localtime(&rawtime);
 //	strftime(datetime_data,100,"%y%d%m_%H%M", timeinfo);
 	strftime(datetime_data,100,"%y%d%m", timeinfo);
+	char help_message[2000];
+	sprintf(help_message,"%s -f -t -s filename1 filename 2 ... \n"
+"	options: \n"
+"		-f) collective full calculation required long time and large memory \n"
+"		-F) collective self calculation required long time and large memory \n"
+"			space-time, twotime, stress etc...\n"
+"		-t) only twotime correlation \n"
+"		-s) only twotime correlation + stress tensor \n"
+"		-V) velocity correlation \n"
+"		-M) magnet correlation \n"
+"		-d) Get Amount of dynamic memory allocation \n"
+"   -i) argment filename for input variable \n"
+			, argv[0]);
+		
 	
 	if( argc <2) {
-		printf("%s -f -t -s \n"
-				"	options: \n"
-				"		-f) full calculation required long time and large memory \n"
-				"			space-time, twotime, stress etc...\n"
-				"		-t) only twotime correlation \n"
-				"		-s) only twotime correlation + stress tensor \n"
-				"		-V) using velocity correlation  \n"
-				"		-M) using magnet correlation  \n"
-				"   -i) argment filename for input variable \n"
-				, argv[0]);
+		puts(help_message);
 		return EXIT_FAILURE;
 	}
 	while (1) {
-		opt = getopt (argc,argv, "tfFsVMi:");
+		opt = getopt (argc,argv, "tfFsVMi:d");
 		if (opt == -1) break;
 		switch (opt) {
 			case 't' :
@@ -165,6 +171,9 @@ int main(int argc, char** argv) {
 			case 'V' :
 				puts("flag_velocity on : velocity correlation on");
 				flag_velocity = true; break;
+			case 'd' :
+				puts("flag_d on : get amount of dynamic memory allocation");
+				flag_d = true; break;
 			case 'M' :
 				puts("flag_magnet on : magnet correlation on");
 				flag_magnet = true; break;
@@ -175,34 +184,14 @@ int main(int argc, char** argv) {
 			case 'h':
 			case '?':
 			default:
-				printf("%s -f -t -s filename1 filename 2 ... \n"
-						"	options: \n"
-						"		-f) collective full calculation required long time and large memory \n"
-						"		-F) collective self calculation required long time and large memory \n"
-						"			space-time, twotime, stress etc...\n"
-						"		-t) only twotime correlation \n"
-						"		-s) only twotime correlation + stress tensor \n"
-						"		-V) velocity correlation \n"
-						"		-M) magnet correlation \n"
-						"   -i) argment filename for input variable \n"
-, argv[0]
-						);
+				puts(help_message);
 			return EXIT_FAILURE;
 			
 		}
 	}
 
 	if(optind ==argc ) {
-		printf("%s -f -t -s \n"
-				"	options: \n"
-				"		-f) full calculation required long time and large memory \n"
-				"			space-time, twotime, stress etc...\n"
-				"		-t) only twotime correlation \n"
-				"		-s) only twotime correlation + stress tensor \n"
-				"		-V) velocity correlation \n"
-				"		-M) magnet correlation \n"
-				"   -i) argment filename for input variable \n"
-				, argv[0]);
+		puts(help_message);
 		return EXIT_FAILURE;
 	}
 
@@ -459,6 +448,9 @@ void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 	cl_sqt->nSkip =0;
 	if (cl_sqt->flag_alloc == 0 ) {
 		omp_set_lock(&write_lock);
+		if(flag_d == true ) {
+			AmountAllocArray(cl_sqt);
+		}
 		AllocArray(cl_sqt);
 		cl_sqt->flag_alloc = 1;
 		flag_global_alloc =1;
@@ -1501,6 +1493,158 @@ void AllocMemCheck ()
 		printf("Reserving memory Error!!!!!!\n");
 		exit(1);
 	}
+}
+void AmountAllocArray(MakeSqtClass * cl_sqt) 
+{
+#define AAM2 AmountAllocMem2
+#define AAM AmountAllocMem
+	long long int mem = 0;
+	long long int part_mem = 0;
+	if (flag_f == true) {
+		if (flag_F == true) {
+			mem += AAM2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+			mem += AAM2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+		}
+
+		mem += AAM2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
+		if (flag_velocity == true) {
+			mem += AAM2 (avC2_v_rho,  AVDOF * nCSpatial, nCTime, real);
+		}
+		if (flag_magnet == true) {
+			mem += AAM2 (avC2_mu_rho,  AVDOF * nCSpatial, nCTime, real);
+			mem += AAM2 (avC2_mu_mu,  AVDOF * nCSpatial, nCTime, real);
+		}
+		mem += AAM2 (valDqt,  nCSpatial, nCTime, real);
+		mem += AAM2 (valGammaQT,  nCSpatial, nCTime, real);
+	}
+
+	part_mem += AAM (cl_sqt->tBuf, nCBuffer, TBuf);
+	TBuf* tBuf = cl_sqt->tBuf;
+	if (flag_f == true) {
+		part_mem += AAM (tBuf->rho_q1, FDOF * nCSpatial, real);
+		if (flag_velocity == true) {
+			part_mem += AAM (tBuf->kvel_q1, FDOF * nCSpatial, real);
+		}
+		if (flag_magnet == true) {
+			part_mem += AAM (tBuf->kmu_q1, FDOF * nCSpatial, real);
+		}
+		for (int nb = 0; nb < nCBuffer; nb ++) {
+			TBuf* b = &tBuf[nb];
+			part_mem += AAM (b->org_rho_q1, FDOF * nCSpatial, real);
+			if (flag_velocity == true) {
+				part_mem += AAM (b->org_kvel_q1, FDOF * nCSpatial, real);
+				part_mem += AAM2 (b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
+			}
+			if (flag_magnet == true) {
+				part_mem += AAM (b->org_kmu_q1, FDOF * nCSpatial, real);
+				part_mem += AAM2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
+				part_mem += AAM2 (b->C2_mu_mu, AVDOF * nCSpatial, nCTime, real);
+			}
+
+			if (flag_F == true) {
+				part_mem += AAM2 (b->F_s_qq2, AVDOF * nCSpatial, nCTime, real);
+				part_mem += AAM2 (b->F_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			}
+			part_mem += AAM2 (b->F_qq2, AVDOF * nCSpatial, nCTime, real);
+		}
+	}
+
+	if (flag_t == true) {
+		mem += AAM (rrMSDAv, nCTime, real);
+		mem += AAM (rrMSDCMAv, nCTime, real);
+		if (flag_velocity == true) {
+			mem += AAM (rrCvvAv, nCTime, real);
+			mem += AAM (rrCvcmvcmAv, nCTime, real);
+		}
+		if (flag_magnet == true) {
+			mem += AAM (rrCmmAv, nCTime, real);
+		}
+		mem += AAM (rrMQDAv, nCTime, real);
+		mem += AAM (rrMSR1_R_Av , nCTime, VecR3);
+		mem += AAM (rrDt, nCTime, real);
+		// AllocArray for shear viscosity
+		// 				 (diffusion of momentum)
+		if (flag_s == true) {
+			mem += AAM (rrMSR2_VR_Av, nCTime, Rank2R3);
+			mem += AAM (rrMSR2_VR_Av_dig, nCTime, real);
+			mem += AAM (rrMSR2_VR_Av_offdig, nCTime, real);
+		}
+	}
+	if (flag_f == true) {
+		mem += AAM2 (avDrTable, nCSpatial,nCTime, real);
+	}
+
+
+	if (flag_f == true) {
+		part_mem += AAM (tBuf->rho_s_q1_temp, 
+				FDOF * nCSpatial, real);
+
+		if (flag_F== true ) {
+			part_mem += AAM (tBuf->rho_s_q1, nPtls, real*);
+			part_mem += AAM (tBuf->rho_d_q1, nPtls, real*);
+
+			for (int natom=0; natom <nPtls ; natom++) {
+				part_mem += AAM (tBuf->rho_s_q1[natom], FDOF * nCSpatial, real);
+				part_mem += AAM (tBuf->rho_d_q1[natom], FDOF * nCSpatial, real);
+			}
+		}
+	}
+	for (int nb = 0; nb < nCBuffer; nb ++) {
+		if (flag_t == true) {
+			part_mem += AAM (tBuf[nb].orgR, nPtls, VecR3);
+			if (flag_magnet == true) {
+				part_mem += AAM (tBuf[nb].orgMu, nPtls, VecR3);
+				part_mem += AAM (tBuf[nb].rrCmm, nCTime, real);
+			}
+			if (flag_velocity == true) {
+				part_mem += AAM (tBuf[nb].orgV, nPtls, VecR3);
+				part_mem += AAM (tBuf[nb].rrCvv, nCTime, real);
+				part_mem += AAM (tBuf[nb].rrCvcmvcm, nCTime, real);
+			}
+			part_mem += AAM (tBuf[nb].rrMSD, nCTime, real);
+			part_mem += AAM (tBuf[nb].rrMSDCM, nCTime, real);
+			part_mem += AAM (tBuf[nb].rrMQD, nCTime, real);
+			part_mem += AAM (tBuf[nb].rrMSR1_R, nCTime, VecR3);
+			if (flag_s == true) {
+				part_mem += AAM (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
+			}
+		}
+
+		if (flag_f == true) {
+			part_mem += AAM2 (tBuf[nb].DrTable, nCSpatial,nCTime, int);
+			if (flag_F) {
+				part_mem += AAM (tBuf[nb].org_rho_s_q1, nPtls, real*);
+				part_mem += AAM (tBuf[nb].org_rho_d_q1, nPtls, real*);
+
+				for (int natom=0; natom <nPtls ; natom++) {
+					part_mem += AAM (tBuf[nb].org_rho_s_q1[natom], FDOF * nCSpatial, real);
+					part_mem += AAM (tBuf[nb].org_rho_d_q1[natom], FDOF * nCSpatial, real);
+				}
+			}
+		}
+	}
+	
+	mem += AAM (factorDr, nCSpatial, real);
+	mem += AAM (radius, nCSpatial, real);
+
+
+	
+	int nthreads = omp_get_num_threads();
+	mem += part_mem*nthreads;
+	unsigned int GiB,MiB,KiB,Byte;
+	Byte = mem % 1024; mem /= 1024;
+	KiB = mem % 1024; mem /= 1024;
+	MiB = mem % 1024; mem /= 1024;
+	GiB = mem/1024;
+	printf("The Number of Threads = %d \n",nthreads);
+	if (GiB >0 ) printf("%dGiB ",GiB);
+	if (MiB >0 ) printf("%dMiB ",MiB);
+	if (KiB >0 ) printf("%dKiB ",KiB);
+	printf("%dByte\n ",Byte);
+	puts("End fake Job!!");
+	
+	exit(1);
+
 }
 void AllocArray (MakeSqtClass* cl_sqt)
 	/*!
