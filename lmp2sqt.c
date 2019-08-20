@@ -732,7 +732,7 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 	int nTypes = sizeof(header)/ sizeof(char*);
 	int header_txtCorr = strlen(txtCorr);
 
-	fwrite (header_txtCorr,sizeof(int),1,fp);
+	fwrite (&header_txtCorr,sizeof(int),1,fp);
 	fwrite (txtCorr,1,header_txtCorr,fp);
 
 	fwrite (&nTypes,sizeof(int) ,1,fp);
