@@ -26,7 +26,6 @@
 #include <errno.h>
 #include <getopt.h>
 #include <unistd.h>
-#include "common.h"
 
 
 #define ALLOC_pointer(type) type**  alloc_pointer_ ## type(size_t n) { \
@@ -238,7 +237,7 @@ void PrintHelp ( char *pName, int linenumber)
 			"\t--window -w  : do windows \n"
 			"\t--nskip -s (with option int): Skip early data\n"
 			"\t--ndiff -d (with option int): \n"
-			"\t--ulimit -r (with option float:default->exp(-2.5)): \n"
+			"\t--ulimit -u (with option float:default->exp(-2.5)): \n"
 			"\t--help -h    : usage of this function\n"
 			"\t--verbose -v : equaivalent with help \n"
 			"\t--text  : text style data file \n"
@@ -649,7 +648,13 @@ void load_raw_data()
 		//		if ( NULL == (pSnap = read_dump (input ) )) break;
 
 		int suc_count = 0, full_count = strlen(txtCorr) ;
+		int header_txtCorr ;
+		suc_count = fread (&header_txtCorr ,sizeof(int) ,1,input);
 		// To reach end of file, break!!
+		if ( header_txtCorr !=  full_count){
+			puts("File error Header size different");
+			exit(1);
+		}
 		suc_count = fread (bp,sizeof(char) ,full_count,input);
 		if ( full_count != suc_count)  break;
 		int nTypes;
@@ -670,6 +675,13 @@ void load_raw_data()
  */
 				char str_temp[100];
 				size_t strlength = strlen(header[j]);
+				int length;
+				fread(&length, sizeof(int),1,input);
+				if(length !=strlength) {
+					puts("sub header length different. version check");
+					exit(1);
+				}
+
 				fread(str_temp, sizeof(char), strlength, input);
 
 				fread(&col2, sizeof(real),1,input);

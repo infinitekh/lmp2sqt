@@ -1,13 +1,13 @@
 CC=gcc
 MAJOR = 1
-MINOR = 7
+MINOR = 8
 BUILD = $(shell date +"%y%m%d.%H%M")
 VERSIONA = "\"$(MAJOR).$(MINOR).$(BUILD)\""
 VERSION = "$(MAJOR).$(MINOR).$(BUILD)"
 VERSIONR = "$(MAJOR).$(MINOR)"
 CPPFLAGS = -DVERSION=$(VERSIONA)
 
-
+CFLAGS = -fopenmp 
 
 
 all:  build debug
@@ -17,14 +17,14 @@ analysis_binary: analysis_binary.c snapshot.c common.c
 analysis: analysis.c snapshot.c common.c 
 	$(CC) $(CFLAGS) analysis.c snapshot.c common.c  -lm -O3 -o $@.$(VERSION).out -DNDEBUG
 lmp2sqt.simple: lmp2sqt.c snapshot.c common.c 
-	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm -O3 -fopenmp -o $@.$(VERSION).out -DNDEBUG
+	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm -O3  -o $@.$(VERSION).out -DNDEBUG
 debug: debug_analysis  debug_lmp2sqt.simple debug_analysis_binary
 debug_analysis_binary:analysis_binary.c snapshot.c common.c
 	$(CC) $(CFLAGS) analysis_binary.c snapshot.c common.c -lm -ggdb -o $@.$(VERSION).gdb
 debug_analysis:analysis.c snapshot.c common.c
 	$(CC) $(CFLAGS) analysis.c snapshot.c common.c -lm -ggdb -o $@.$(VERSION).gdb
 debug_lmp2sqt.simple:lmp2sqt.c snapshot.c common.c
-	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm -fopenmp -ggdb -o $@.$(VERSION).gdb
+	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm  -ggdb -o $@.$(VERSION).gdb
 
 install: analysis.out lmp2sqt.simple.out analysis_binary.out
 	cp analysis.out lmp2sqt.simple.out analysis_binary.out /home/kh/bin/

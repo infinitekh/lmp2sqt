@@ -124,8 +124,6 @@ int main(int argc, char** argv) {
 	long int num_data [argc+3];
 	limitCorrAv = 0;
 
-	omp_init_lock(&write_lock);
-	omp_init_lock(&read_lock);
 	time_t rawtime;
 	struct tm* timeinfo;
 	rawtime = time(NULL);
@@ -194,7 +192,8 @@ int main(int argc, char** argv) {
 		puts(help_message);
 		return EXIT_FAILURE;
 	}
-
+	
+	int runable = 0;
 	GetNameList();
 	for( opt_num = optind;   opt_num < argc; opt_num++)  {
 		strcpy( filename,argv[opt_num]);
@@ -227,7 +226,11 @@ int main(int argc, char** argv) {
 		else if ( floor((n_snap - nCTime) /(nCTime/ nCBuffer)) <1) {
 			fprintf(stderr,"The # of snap is too small()\n"
 					     "it dont make a infomation\n"
-					"We would  not use 	this file(%s)!!\n", filename);
+							 "floor((n_snap - nCTime) /(nCTime/ nCBuffer)) <1\n"
+							 "floor((%d - %d) /(%d/ %d)) <1\n"
+					"We would  not use 	this file(%s)!!\n", 
+					n_snap,nCTime, nCTime, nCBuffer,
+					filename);
 			files_on [opt_num] = false;
 		}
 		else {
@@ -239,63 +242,55 @@ int main(int argc, char** argv) {
 			limitCorrAv += floor((n_snap - nCTime) /(nCTime/ nCBuffer));
 			full_n_snaps += n_snap;
 			files_on [opt_num] = true;
+			runable += 1;
 		}
 		fclose (fp);
 	}
 
+	if ( runable ==0 ) {
+		puts("Check your input options or datafile length!!");
+		exit(1);
+	}
 	PrintNameList2File(stderr);
 	UpdateNameList ();
 	int num_files =0;
 	for( opt_num = optind;   opt_num < argc; opt_num++)  {
 		if (files_on[opt_num] == true) num_files ++;
 	}
-	nthreads = omp_get_max_threads();
-	////  below code for n file openmp test;
-////	nthreads = (nthreads< num_files)? nthreads:num_files;
-	omp_set_num_threads(nthreads);
-	printf("OMP_SET_NUM_THREADS=%d\n",nthreads);
-/* 	nthreads = 1;
- * 	omp_set_num_threads(nthreads);
- */
+  //   One process serially use each file.
 	
-	real * r_done_works;
-	int * i_done_works;
-	AllocMem(classSqt,nthreads,MakeSqtClass);
-	AllocMem(r_done_works,nthreads,real);
-	AllocMem(i_done_works,nthreads,int);
+	real  r_done_works;
+	int  i_done_works;
+
+	AllocMem(classSqt,1,MakeSqtClass);
 	
-	for ( int tID =0; tID < nthreads; tID++) {
-		classSqt[tID].flag_alloc = 0;
-		classSqt[tID].flag_alloc_more = 0;
-		i_done_works[tID]= 0;
-	}
+	classSqt->flag_alloc = 0;
+	classSqt->flag_alloc_more = 0;
+	i_done_works= 0;
 
 
-//#pragma omp parallel for    schedule(dynamic)
+// recoding without openmp that is not suitable. 
 	for( opt_num = optind;   opt_num < argc; opt_num++)  {
 		if (files_on[opt_num] == false) continue;
 		strcpy( filename,argv[opt_num]);
 		FILE* fp = fopen( filename ,"r");
 		Snapshot* snap, *firstSnap;
-		int tID = omp_get_thread_num();
-		MakeSqtClass* cl_sqt = & classSqt[tID];
+
+		MakeSqtClass* cl_sqt =  classSqt;
 		InitSpacetimeCorr(cl_sqt);
 		/*!
 		 *  \brief  Start Calculation.
 		 */
-		omp_set_lock(&read_lock);
 		rewind(fp);  
 			firstSnap = read_dump(fp);
 		Init_reciprocal_space(firstSnap);
 		rewind(fp);
-		omp_unset_lock(&read_lock);
+
 		fprintf(stderr,"FULL_SNAPS = %5d\n",full_n_snaps);
 		for (int ns = 0 ; ns < num_data[opt_num] ; ns++ ) {
 			/* 		while(1) {}
 			*/
-			omp_set_lock(&read_lock);
 			snap =	read_dump(fp);
-			omp_unset_lock(&read_lock);
 			if (snap == NULL)
 				break;
 			cl_sqt->snap = snap;
@@ -303,24 +298,22 @@ int main(int argc, char** argv) {
 			EvalSpacetimeCorr(cl_sqt);
 
 			free_Snapshot(snap);
-#pragma omp atomic
+//#pragma omp atomic
 			full_n_snaps_index++;
 
-			i_done_works[tID]++;
+			i_done_works++;
 
 			int new_progress =(1000.0*full_n_snaps_index/ full_n_snaps);
-			r_done_works[tID] =
-				(1000.0*i_done_works[tID]/ full_n_snaps);
+			r_done_works =
+				(1000.0*i_done_works/ full_n_snaps);
 			/* 			fprintf(stderr,"FULL_SNAPS = %5d, newprogress %d\n",full_n_snaps_index,
 			 * 					new_progress);
 			 */
 			if (new_progress != progress ) {
 				progress = new_progress;
 				fprintf(stderr, "\r %4.1f%%(", progress*.1);
-				for (int k =0 ; k<nthreads; k++) 
-					fprintf(stderr, "-tid:%d:%4.1f%%", k,r_done_works[k]*.1);
-				fprintf(stderr, ")");
-				//				fflush(stderr);
+				fprintf(stderr, "main:%4.1f%%", r_done_works*.1);
+				fflush(stderr);
 			}
 		}
 		//		opt_num ++;
@@ -333,13 +326,10 @@ int main(int argc, char** argv) {
 		fprintf(stderr, "limit corr  = %d, countCorrAv = %d\n",
 				limitCorrAv,countCorrAv);
 		limitCorrAv =countCorrAv;
-		MakeSqtClass* cl_sqt = & classSqt[0];
+		MakeSqtClass* cl_sqt =  classSqt;
 		PrintProcess(cl_sqt);
-
 	}
-
-	omp_destroy_lock(&write_lock);
-	omp_destroy_lock(&read_lock);
+  
 	return 0;
 }
 
@@ -347,9 +337,9 @@ void PrintProcess(MakeSqtClass* cl_sqt)
 {
 	FILE* fout_log  = fopen( "output.log", "w+");
 	fputs("Call PrintProcess : \n", fout_log);
-	fputs("Call PrintProcess : \n", stderr);
 	
 	if(NULL== cl_sqt){
+		fprintf(stderr,"FILE : %s,  FUNCTION : %s, LINE : %d, cl_sqt is NULL\n", __FILE__, __func__ , __LINE__);
 		exit(1);
 	}
 
@@ -383,7 +373,7 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 	TBuf* pt;
 	for (nb = 0; nb < nCBuffer; nb ++) {
 		if (tBuf[nb].count == nCTime) {
-			omp_set_lock(&write_lock);
+			//omp_set_lock(&write_lock);
 			// check!! that  data is full
 			// S(q,t), M(q,t) part
 			pt = &tBuf[nb];
@@ -435,7 +425,7 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 			if (countCorrAv == limitCorrAv) {
 				PrintProcess (cl_sqt);
 			}
-			omp_unset_lock(&write_lock);
+			//omp_unset_lock(&write_lock);
 		} //   if tBuf[nb].count is full
 	}   // for all buffer
 }
@@ -447,7 +437,7 @@ void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 {
 	cl_sqt->nSkip =0;
 	if (cl_sqt->flag_alloc == 0 ) {
-		omp_set_lock(&write_lock);
+		//omp_set_lock(&write_lock);
 		if(flag_d == true ) {
 			AmountAllocArray(cl_sqt);
 		}
@@ -455,7 +445,7 @@ void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 		cl_sqt->flag_alloc = 1;
 		flag_global_alloc =1;
 		AllocMemCheck();
-		omp_unset_lock(&write_lock);
+		//omp_unset_lock(&write_lock);
 	}
 	if (nCBuffer > nCTime) {
 		fputs("Error nCBuffer> nCTime\n", stderr);
@@ -792,7 +782,7 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 //        fprintf (fp, "#van Hove function\n");
 				for (int nt = 0; nt < nCTime; nt ++) {
 					for (int nk = 0; nk < nCSpatial; nk ++){
-						fwrite( &(avDrTable[nr][nt]), sizeof(real),1,fp);
+						fwrite( &(avDrTable[nk][nt]), sizeof(real),1,fp);
 					}
 				}
 				break;
@@ -803,13 +793,13 @@ void PrintEtc () {
 
 	//  char filename1[100] ="Dq00.info" ;
 	//  char filename2[100] ="Ft00.info" ;
-	char filename1[100];
-	char filename2[100];
-	char filename3[100];
-	char filename4[100];
-	char filename5[100];
-	char filename6[100];
-	char filename_stress[100];
+	char filename1[200];
+	char filename2[200];
+	char filename3[200];
+	char filename4[200];
+	char filename5[200];
+	char filename6[200];
+	char filename_stress[200];
 	int nfile = 0;
 	do {
 		sprintf(filename1, "Dt%03d.info.%s",nfile,datetime_data);
@@ -1191,8 +1181,10 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 	/*------------------------------
 	 *  Zero initializing
 	 *-----------------------------*/
-	if (cl_sqt == NULL )
+	if (cl_sqt == NULL ){
+		fprintf(stderr,"FILE : %s,  FUNCTION : %s, LINE : %d, cl_sqt is NULL\n", __FILE__, __func__ , __LINE__);
 		exit(1);
+	}
 	if (flag_t == true) {
 		tBuf_tw->rrMSD[subtime]= 0.;
 		tBuf_tw->rrMQD[subtime]= 0.;
@@ -1466,12 +1458,12 @@ void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 	g_Vol  = L*L*L;
 	nPtls = snap->n_atoms;
 	if (cl_sqt->flag_alloc_more ==0 ) {
-		omp_set_lock(&write_lock);
+		//omp_set_lock(&write_lock);
 		Alloc_more(cl_sqt);
 		cl_sqt->flag_alloc_more =1;
 		flag_global_alloc_more = 1;
 		AllocMemCheck ();
-		omp_unset_lock(&write_lock);
+		//omp_unset_lock(&write_lock);
 	}
 
 	kVal = 2.*M_PI / L;
@@ -1504,6 +1496,7 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 {
 #define AAM2 AmountAllocMem2
 #define AAM AmountAllocMem
+
 	long long int mem = 0;
 	long long int part_mem = 0;
 	if (flag_f == true) {
@@ -1635,14 +1628,12 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 
 
 	
-	int nthreads = omp_get_num_threads();
-	mem += part_mem*(long long int )nthreads;
+	mem += part_mem;
 	unsigned int GiB,MiB,KiB,Byte;
 	Byte = mem % 1024; mem /= 1024;
 	KiB = mem % 1024; mem /= 1024;
 	MiB = mem % 1024; 
 	GiB = mem/1024;
-	printf("The Number of Threads = %d \n",nthreads);
 	if (GiB >0 ) printf("%dGiB ",GiB);
 	if (MiB >0 ) printf("%dMiB ",MiB);
 	if (KiB >0 ) printf("%dKiB ",KiB);

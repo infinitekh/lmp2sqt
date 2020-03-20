@@ -24,7 +24,7 @@
 #include<string.h>
 #include<stdlib.h>
 #include<math.h>
-#define MAXLINE 256
+#define MAXLINE 1024
 #include "common.h"
 typedef enum { SUCCESS, FAIL } checktype;
 typedef long int bigint;

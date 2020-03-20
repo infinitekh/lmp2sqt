@@ -400,6 +400,8 @@ char * strtok_null_safe ( char * str, const char * delimiters ) {
 void read_lines(int n,FILE* fp)  // from lammps reader_native.cpp
 {
 	char *eof;int i;
+	memset(line, 0, sizeof(line));                                           
+
 	for (i = 0; i < n; i++) eof = fgets(line,MAXLINE,fp);
 	if (eof == NULL) {
 		error_code = 1;
