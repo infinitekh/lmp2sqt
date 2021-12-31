@@ -7,7 +7,7 @@ VERSION = "$(MAJOR).$(MINOR).$(BUILD)"
 VERSIONR = "$(MAJOR).$(MINOR)"
 CPPFLAGS = -DVERSION=$(VERSIONA)
 
-CFLAGS = -fopenmp 
+CFLAGS = -fopenmp -std=c99
 
 
 all:  build debug
