@@ -28,6 +28,9 @@
 #include <unistd.h>
 #include "common.h"
 
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
 
 #define ALLOC_pointer(type) type**  alloc_pointer_ ## type(size_t n) { \
 	  return (type **) malloc(sizeof(type*)*n); \
