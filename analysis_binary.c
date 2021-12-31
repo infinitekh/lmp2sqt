@@ -214,7 +214,7 @@ void Print_R2_data ( FILE* fp, real* datas)
 	}
 	fprintf (fp, "\n");
 
-	for (n=0; n < nv; n++) {
+	for (n=0; n < nCTime; n++) {
 		if (doFourier) x = n * omegaMax / nv;
 		else x = n * deltaTCorr;
 		printf ( "%9.4e", x);

@@ -17,9 +17,11 @@
  * =====================================================================================
  */
 #include <stdio.h>
+#ifndef __common_h__
+#define __common_h__
 
 typedef double real;
-char *txtCorr;
+extern char *txtCorr;
 int fwrite_matrix( FILE *fout, real **m, int xsize, int ysize, real *rt, real *ct);
 
 
@@ -64,3 +66,4 @@ void real_tensor_zero_r2( Rank2R3* );
 void real_tensor_zero_r1( VecR3* );
 real real_tensor_sum_dig_r2(Rank2R3*);
 real real_tensor_sum_offdig_r2(Rank2R3*);
+#endif
