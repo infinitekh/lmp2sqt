@@ -48,7 +48,9 @@
 //} VecR3;
 typedef struct {
 	real **F_qq2, *org_rho_q1, *org_kvel_q1, *org_kmu_q1;
-	real **C2_v_rho,  **C2_mu_rho, **C2_mu_mu;
+	real **C2_v_rho,  **C2_mu_rho,  **C2_v_mu;
+	real **C2_rho_v,  **C2_rho_mu,  **C2_mu_v;
+	real **C2_v_v, **C2_mu_mu;
 	real **F_s_qq2, **F_d_qq2, **org_rho_s_q1 , **org_rho_d_q1  ;
 	VecR3 *orgR, *rTrue, *orgV, *orgMu; 
 	real *rho_q1, *kvel_q1, *kmu_q1 ;
@@ -167,10 +169,19 @@ int nPtls;
  */
 real **avF_qq2,  **valDqt, **valGammaQT ;
 real **avF_s_qq2, **avF_d_qq2;
+real **StdDevF_qq2, **StdDevF_s_qq2, **StdDevF_d_qq2;
+
+real **avC2_v_v;
 real **avC2_v_rho;
+real **avC2_rho_v;
+
+real **avC2_rho_mu;
 real **avC2_mu_rho;
 real **avC2_mu_mu;
 
+
+real **avC2_v_mu;
+real **avC2_mu_v;
 
 real *factorDr, *radius;
 int countCorrAv, limitCorrAv, nCBuffer, nCSpatial, nCTime, nCSkip;
@@ -210,6 +221,7 @@ void InitSpacetimeCorr (MakeSqtClass* );
 void EvalOtherInformation ();
 void PrintProcess ( MakeSqtClass* );
 void PrintSpacetimeCorr (FILE *fp);
+void PrintSpacetimeCorrTr (FILE *fp);
 void EvalSpacetimeCorr (MakeSqtClass*);
 void AmountAllocArray(MakeSqtClass*);
 void AllocArray(MakeSqtClass* );

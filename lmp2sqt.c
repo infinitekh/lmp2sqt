@@ -131,7 +131,7 @@ int main(int argc, char** argv) {
 //	strftime(datetime_data,100,"%y%d%m_%H%M", timeinfo);
 	strftime(datetime_data,100,"%y%d%m", timeinfo);
 	char help_message[2000];
-	sprintf(help_message,"%s -f -t -s filename1 filename 2 ... \n"
+	sprintf(help_message,"%s -f -t -s fn_Dt filename 2 ... \n"
 "	options: \n"
 "		-f) collective full calculation required long time and large memory \n"
 "		-F) collective self calculation required long time and large memory \n"
@@ -303,16 +303,16 @@ int main(int argc, char** argv) {
 
 			i_done_works++;
 
-			int new_progress =(1000.0*full_n_snaps_index/ full_n_snaps);
+			int new_progress =(10000.0*full_n_snaps_index/ full_n_snaps);
 			r_done_works =
-				(1000.0*i_done_works/ full_n_snaps);
+				(10000.0*i_done_works/ full_n_snaps);
 			/* 			fprintf(stderr,"FULL_SNAPS = %5d, newprogress %d\n",full_n_snaps_index,
 			 * 					new_progress);
 			 */
 			if (new_progress != progress ) {
 				progress = new_progress;
-				fprintf(stderr, "\r %4.1f%%(", progress*.1);
-				fprintf(stderr, "main:%4.1f%%", r_done_works*.1);
+				fprintf(stderr, "\r %4.2f%%(", progress*.01);
+				fprintf(stderr, "main:%4.2f%%", r_done_works*.01);
 				fflush(stderr);
 			}
 		}
@@ -381,15 +381,26 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 				for (k = 0; k < AVDOF * nCSpatial; k ++) {
 					for (n = 0; n < nCTime; n ++) {
 						avF_qq2[k][n] += pt->F_qq2[k][n];
+						StdDevF_qq2[k][n] += pt->F_qq2[k][n]*pt->F_qq2[k][n];
 						if (flag_F == true ) {
 							avF_s_qq2[k][n] += pt->F_s_qq2[k][n];
+							StdDevF_s_qq2[k][n] += pt->F_s_qq2[k][n]*pt->F_s_qq2[k][n];
+
 							avF_d_qq2[k][n] += pt->F_d_qq2[k][n];
+							StdDevF_d_qq2[k][n] += pt->F_d_qq2[k][n]*pt->F_d_qq2[k][n];
 						}
 						if(flag_velocity==true){
 							avC2_v_rho[k][n] += pt->C2_v_rho[k][n];
+							avC2_rho_v[k][n] += pt->C2_rho_v[k][n];
+							avC2_v_v[k][n] += pt->C2_v_v[k][n];
+						}
+						if(flag_velocity && flag_magnet){
+							avC2_v_mu[k][n] += pt->C2_v_mu[k][n];
+							avC2_mu_v[k][n] += pt->C2_mu_v[k][n];
 						}
 						if(flag_magnet==true){
 							avC2_mu_rho[k][n] += pt->C2_mu_rho[k][n];
+							avC2_rho_mu[k][n] += pt->C2_rho_mu[k][n];
 							avC2_mu_mu[k][n] += pt->C2_mu_mu[k][n];
 						}
 					}
@@ -457,6 +468,8 @@ void InitSpacetimeCorr (MakeSqtClass* cl_sqt)
 		tBuf[nb].count = - nb * nCTime / nCBuffer;
 		tBuf[nb].countDiff = - nb * nCTime / nCBuffer;
 	}
+
+
 }
 
 void ZeroAvSpacetimeCorr ()
@@ -471,9 +484,26 @@ void ZeroAvSpacetimeCorr ()
 		for (nk = 0; nk < AVDOF * nCSpatial; nk ++) {
 			for (nt = 0; nt < nCTime; nt ++) {
 				avF_qq2[nk][nt] = 0.;
+				StdDevF_qq2[nk][nt] = 0.;
 				if (flag_F == true) {
 					avF_s_qq2[nk][nt] = 0.;
 					avF_d_qq2[nk][nt] = 0.;
+					StdDevF_s_qq2[nk][nt] = 0.;
+					StdDevF_d_qq2[nk][nt] = 0.;
+				}
+				if (flag_velocity == true) {
+					avC2_v_rho [nk][nt] = 0. ;
+					avC2_rho_v [nk][nt] = 0. ;
+					avC2_v_v [nk][nt] = 0. ;
+				}
+				if (flag_velocity && flag_magnet ) {
+					avC2_mu_v [nk][nt] = 0. ;
+					avC2_v_mu [nk][nt] = 0. ;
+				}
+				if (flag_magnet == true) {
+					avC2_mu_rho [nk][nt] = 0. ;
+					avC2_rho_mu [nk][nt] = 0. ;
+					avC2_mu_mu [nk][nt] = 0. ;
 				}
 			}
 		}
@@ -542,18 +572,50 @@ void EvalOtherInformation ()
 
 void prePrintProcess () 
 {
-	real scale_factor = 1./(3.0*nPtls*countCorrAv);
+	real inverseNptls = 1./nPtls;
+	real inverseNptlsSq = 1./(nPtls*nPtls);
+	real average_number = 1./(3.0*countCorrAv);
 	if (flag_f == true) {
 #pragma omp parallel for
 		for (int nr = 0; nr < AVDOF * nCSpatial; nr ++) {
 			for (int nt = 0; nt < nCTime; nt ++){
-				avF_qq2[nr][nt] *= scale_factor;
+				real average = (avF_qq2[nr][nt] * inverseNptls) * average_number ;
+				real averageSq = (StdDevF_qq2[nr][nt] * inverseNptlsSq) * average_number;
+				avF_qq2[nr][nt] = average;
+				StdDevF_qq2[nr][nt] = sqrt(   (averageSq - average*average) );
+				//				ErrF_qq2[nr][nt] = sqrt( average_number * (averageSq - average*average) );
 				if (flag_F == true) {
-					avF_s_qq2[nr][nt] *= scale_factor;
-					avF_d_qq2[nr][nt] *= 0.5*scale_factor;
+					/* 					avF_s_qq2[nr][nt] *= scale_factor;
+					 * 					avF_d_qq2[nr][nt] *= 1.*scale_factor;
+					 * 					StdDevF_s_qq2[nr][nt] *= scale_factor;
+					 * 					StdDevF_d_qq2[nr][nt] *= 1. *scale_factor;
+					 */
+
+					average = (avF_s_qq2[nr][nt] * inverseNptls ) * average_number;
+					averageSq = (StdDevF_s_qq2[nr][nt] * inverseNptlsSq )* average_number;
+					avF_s_qq2[nr][nt] = average;
+					StdDevF_s_qq2[nr][nt] = sqrt(  (averageSq - average*average) );
+					//					ErrF_s_qq2[nr][nt] = sqrt( average_number * (averageSq - average*average) );
+
+					average = (avF_d_qq2[nr][nt] * inverseNptls ) * average_number;
+					averageSq = (StdDevF_d_qq2[nr][nt] * inverseNptlsSq) * average_number;
+					avF_d_qq2[nr][nt] = average;
+					StdDevF_d_qq2[nr][nt] = sqrt(  1. * (averageSq - average*average) );
+					//					ErrF_d_qq2[nr][nt] = sqrt( average_number * 1. * (averageSq - average*average) );
 				}
-				if (flag_velocity == true ) {
-					avC2_v_rho[nr][nt] *= scale_factor;
+				if (flag_velocity == true) {
+					avC2_v_rho [nr][nt] *= inverseNptls * average_number ;
+					avC2_rho_v [nr][nt] *= inverseNptls * average_number ;
+					avC2_v_v [nr][nt]   *= inverseNptls * average_number ;
+				}
+				if (flag_velocity && flag_magnet ) {
+					avC2_mu_v [nr][nt] *= inverseNptls * average_number ;
+					avC2_v_mu [nr][nt] *= inverseNptls * average_number ;
+				}
+				if (flag_magnet == true) {
+					avC2_mu_rho [nr][nt] *= inverseNptls * average_number ;
+					avC2_rho_mu [nr][nt] *= inverseNptls * average_number ;
+					avC2_mu_mu [nr][nt] *= inverseNptls * average_number ;
 				}
 			}
 		}
@@ -570,9 +632,10 @@ void prePrintProcess ()
 	 *   rrMQDAv -> mean quadropole displacemnt 
 	 *-----------------------------------------------------------------------------*/
 	//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
-	scale_factor = 1./ ( nPtls *  countCorrAv); 
-	real factor_Cvv = 1./(nPtls * countCorrAv*3.);
-	real factor_Cvcmvcm = 1./(nPtls * countCorrAv*3.);
+	real scale_factor = 1./ ( nPtls *  countCorrAv); 
+	real factor_Cvv = 1./(nPtls* countCorrAv*3.);
+	real factor_msdcm = 1./( countCorrAv);
+	real factor_Cvcmvcm = 1./( countCorrAv*3.);
 	real factor_dig = 1./(3.*countCorrAv * g_Vol);
 	real factor_offdig = 1./(6.*countCorrAv * g_Vol);
 
@@ -580,7 +643,7 @@ void prePrintProcess ()
 #pragma omp parallel for
 		for (int nt = 0; nt < nCTime; nt ++) {
 			rrMSDAv[nt] *= scale_factor;
-			rrMSDCMAv[nt] *= scale_factor;
+			rrMSDCMAv[nt] *= factor_msdcm;
 			rrMQDAv[nt] *= scale_factor;
 			if (flag_velocity == true ) {
 				rrCvvAv[nt] *= factor_Cvv;
@@ -623,7 +686,7 @@ void PrintSpacetimeCorr (FILE *fp)
 		"full-density",  // 0
 		"self-density",  // 1
 		"cross-density", // 2
-		"self-vanHove"                              // 3
+		"self-vanHove"   // 3
 	};
 
 	fprintf (fp, "%s\n",txtCorr);
@@ -641,11 +704,11 @@ void PrintSpacetimeCorr (FILE *fp)
 *-----------------------------------------------------------------------------*/
 				nType= 0;
 				for (int nt = 0; nt < nCTime; nt ++) {
-					/* 			deltaT = n *1. * deltaT;
-					 * 			fprintf (fp, "%7.3f", deltaT);
-					 */
+					real time_d = nt *1. * deltaT;
+					fprintf (fp, "%7.3f", time_d);
+
 					for (int nk = 0; nk < nCSpatial; nk ++){
-						fprintf (fp, " %8.4e", avF_qq2[AVDOF * nk + nType][nt]);
+						fprintf (fp, " %8.4e %8.4e", avF_qq2[AVDOF * nk + nType][nt], StdDevF_qq2[AVDOF * nk + nType][nt]);
 					}
 					fprintf (fp, "\n");
 				} 
@@ -657,12 +720,10 @@ void PrintSpacetimeCorr (FILE *fp)
 				if ( flag_F == true) {
 					nType =  0;
 					for (int nt = 0; nt < nCTime; nt ++) {
-						/* 			deltaT = n *1. * deltaT;
-						 * 			fprintf (fp, "%7.3f", deltaT);
-						 */
-						for (int nr = 0; nr < nCSpatial; nr ++){
-							fprintf (fp, " %8.4e", 
-									avF_s_qq2[AVDOF * nr + nType][nt]);
+						real time_d = nt *1. * deltaT;
+						fprintf (fp, "%7.3f", time_d);
+						for (int nk = 0; nk < nCSpatial; nk ++){
+							fprintf (fp, " %8.4e %8.4e", avF_s_qq2[AVDOF * nk + nType][nt],StdDevF_s_qq2[AVDOF * nk + nType][nt]);
 						}
 						fprintf (fp, "\n");
 					} 
@@ -676,11 +737,10 @@ void PrintSpacetimeCorr (FILE *fp)
 				if (flag_F==true) {
 					nType = 0;
 					for (int nt = 0; nt < nCTime; nt ++) {
-						/* 			deltaT = n*(nCSkip+1) *1. * deltaT;
-						 * 			fprintf (fp, "%7.3f", deltaT);
-						 */
-						for (int nr = 0; nr < nCSpatial; nr ++){
-							fprintf (fp, " %8.4e", avF_d_qq2[AVDOF * nr + nType][nt]);
+						real time_d = nt *1. * deltaT;
+						fprintf (fp, "%7.3f", time_d);
+						for (int nk = 0; nk < nCSpatial; nk ++){
+							fprintf (fp, " %8.4e %8.4e", avF_d_qq2[AVDOF * nk + nType][nt], StdDevF_d_qq2[AVDOF * nk + nType][nt]);
 						}
 						fprintf (fp, "\n");
 					} 
@@ -710,7 +770,8 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 {
 
 	extern real kVal;
-	int  nType,  k2, nr;
+	int  nType,  k2;
+	[[maybe_unused]] int nr;
 //	Number_call_Print ++;
 	//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
 	char *header[] = {
@@ -731,6 +792,8 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 		real col2 =  kVal; 
 		real col3 = 1.0*deltaT*(nCSkip+1); 
 		real col4 = rVal; 
+		int DataYes = 1;
+		int DataNo = 0;
 		int length = strlen(header[k2]);
 		fwrite(&length, sizeof(int),1,fp);
 		fwrite(header[k2],sizeof(char), length, fp);
@@ -745,6 +808,7 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 *  avF_qq2[AVDOF*i+nType][k] -> F(q_i,t_k) 
 *-----------------------------------------------------------------------------*/
 				nType= 0;
+				fwrite(&DataYes, sizeof(int),1,fp);
 				for (int nt = 0; nt < nCTime; nt ++) {
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avF_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
@@ -756,13 +820,15 @@ void PrintSpacetimeCorr_binary (FILE *fp)
  *-----------------------------------------------------------------------------*/
 			case 1: 
 				if (flag_F==true) {
-				nType =  0;
-				for (int nt = 0; nt < nCTime; nt ++) {
-					for (int nk = 0; nk < nCSpatial; nk ++){
-						fwrite( &(avF_s_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
-					}
-				} 
+					nType =  0;
+					fwrite(&DataYes, sizeof(int),1,fp);
+					for (int nt = 0; nt < nCTime; nt ++) {
+						for (int nk = 0; nk < nCSpatial; nk ++){
+							fwrite( &(avF_s_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
+						}
+					} 
 				}
+				else fwrite(&DataNo, sizeof(int),1,fp);
 				break;
 /*-----------------------------------------------------------------------------
  *  avF_d_qq2[3*i+nType][j] -> F_d(q_i,t_j) 
@@ -771,15 +837,18 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 			case 2:
 				if (flag_F==true) {
 					nType = 0;
+					fwrite(&DataYes, sizeof(int),1,fp);
 					for (int nt = 0; nt < nCTime; nt ++) {
 						for (int nk = 0; nk < nCSpatial; nk ++){
 							fwrite( &(avF_d_qq2[AVDOF * nk + nType][nt]), sizeof(real),1,fp);
 						}
 					}
 				} 
+				else fwrite(&DataNo, sizeof(int),1,fp);
 				break;
 			case 3: 
 //        fprintf (fp, "#van Hove function\n");
+				fwrite(&DataYes, sizeof(int),1,fp);
 				for (int nt = 0; nt < nCTime; nt ++) {
 					for (int nk = 0; nk < nCSpatial; nk ++){
 						fwrite( &(avDrTable[nk][nt]), sizeof(real),1,fp);
@@ -791,27 +860,43 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 }
 void PrintEtc () {
 
-	//  char filename1[100] ="Dq00.info" ;
-	//  char filename2[100] ="Ft00.info" ;
-	char filename1[200];
-	char filename2[200];
-	char filename3[200];
-	char filename4[200];
-	char filename5[200];
-	char filename6[200];
+	//  char fn_Dt[100] ="Dq00.info" ;
+	//  char fn_vanHove[100] ="Ft00.info" ;
+	char fn_Dt[200];
+	char fn_vanHove[200];
+	char fn_SSF[200];
+
+	char fn_C2_v_rho[200];
+	char fn_C2_rho_v[200];
+	char fn_C2_v_v[200];
+
+	char fn_C2_mu_v[200];
+	char fn_C2_v_mu[200];
+
+	char fn_C2_mu_rho[200];
+	char fn_C2_rho_mu[200];
+	char fn_C2_mu_mu[200];
+
 	char filename_stress[200];
 	int nfile = 0;
 	do {
-		sprintf(filename1, "Dt%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_Dt, "Dt%03d.info.%s",nfile,datetime_data);
 		sprintf(filename_stress, "Stress%03d.info.%s",nfile,datetime_data);
-		sprintf(filename2, "vanHove%03d.info.%s",nfile,datetime_data);
-		sprintf(filename3, "SSF%03d.info.%s",nfile,datetime_data);
-		sprintf(filename4, "C2_v_rho%03d.info.%s",nfile,datetime_data);
-		sprintf(filename5, "C2_mu_rho%03d.info.%s",nfile,datetime_data);
-		sprintf(filename6, "C2_mu_mu%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_vanHove, "vanHove%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_SSF, "SSF%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_C2_v_v, "C2_v_v%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_C2_v_rho, "C2_v_rho%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_C2_rho_v, "C2_rho_v%03d.info.%s",nfile,datetime_data);
+
+		sprintf(fn_C2_mu_v, "C2_mu_v%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_C2_v_mu, "C2_v_mu%03d.info.%s",nfile,datetime_data);
+
+		sprintf(fn_C2_mu_rho, "C2_mu_rho%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_C2_mu_mu, "C2_mu_mu%03d.info.%s",nfile,datetime_data);
+		sprintf(fn_C2_rho_mu, "C2_rho_mu%03d.info.%s",nfile,datetime_data);
 		nfile++;
-	} while( 0 == access(filename1,F_OK) ) ;
-	/* 	FILE* fp_Dq = fopen(filename1,"w");
+	} while( 0 == access(fn_Dt,F_OK) ) ;
+	/* 	FILE* fp_Dq = fopen(fn_Dt,"w");
 	 * 	fprintf (fp_Dq, "# dt = %7.3f\n", deltaT);
 	 * 	for (j = 0; j < nCSpatial; j ++) {
 	 * 		fprintf (fp_Dq, "%8.4f" , j*kVal );
@@ -823,7 +908,7 @@ void PrintEtc () {
 	 * 	fclose(fp_Dq);
 	 */
 
-	/* 	FILE* fp_Ft = fopen(filename2,"w");
+	/* 	FILE* fp_Ft = fopen(fn_vanHove,"w");
 	 * 	fprintf (fp_Ft, "# dq = %7.3e\n", kVal);
 	 * 	for (n = 0; n < nCTime; n ++) {   
 	 * 		fprintf (fp_Ft, "%8.4f" , n*deltaT );
@@ -836,32 +921,79 @@ void PrintEtc () {
 	 */
 
 	if (flag_f == true) {
-		FILE* fp_SSF = fopen(filename3,"w");
-		FILE *fp_C2mumu, *fp_C2vrho, * fp_C2murho;
+		FILE* fp_SSF = fopen(fn_SSF,"w");
+		FILE *fp_C2_mu_mu, *fp_C2_v_v;
+		FILE *fp_C2_mu_rho, *fp_C2_v_rho;
+		FILE *fp_C2_rho_mu, *fp_C2_rho_v;
+		FILE *fp_C2_v_mu, *fp_C2_mu_v;
 		if (flag_velocity == true) {
-			fp_C2vrho = fopen(filename4,"w");
+			fp_C2_v_rho = fopen(fn_C2_v_rho,"w");
+			fp_C2_rho_v = fopen(fn_C2_rho_v,"w");
+			fp_C2_v_v   = fopen(fn_C2_v_v,"w");
+		}
+		if (flag_velocity && flag_magnet) {
+			fp_C2_v_mu = fopen(fn_C2_v_mu,"w");
+			fp_C2_mu_v = fopen(fn_C2_mu_v,"w");
 		}
 		if (flag_magnet == true) {
-			fp_C2murho = fopen(filename5,"w");
-			fp_C2mumu = fopen(filename6,"w");
+			fp_C2_mu_rho = fopen(fn_C2_mu_rho,"w");
+			fp_C2_rho_mu = fopen(fn_C2_rho_mu,"w");
+			fp_C2_mu_mu   = fopen(fn_C2_mu_mu,"w");
 		}
-		for (int nr = 0; nr < nCSpatial; nr ++) {
+		for (int nt = 0; nt < nCTime; nt ++) {
+			int nType= 0;
+			real time_d = nt *1. * deltaT;
 			if (flag_velocity == true) {
-				fprintf (fp_C2vrho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
-						//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-								avC2_v_rho[(AVDOF*nr)+0][0]);
+				fprintf (fp_C2_v_v, "%7.3f", time_d);
+				fprintf (fp_C2_rho_v, "%7.3f", time_d);
+				fprintf (fp_C2_v_rho, "%7.3f", time_d);
+			}
+			if (flag_velocity && flag_magnet ) {
+				fprintf (fp_C2_v_mu, "%7.3f", time_d);
+				fprintf (fp_C2_mu_v, "%7.3f", time_d);
 			}
 			if (flag_magnet == true) {
-				fprintf (fp_C2murho, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
-						//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-								avC2_mu_rho[(AVDOF*nr)+0][0]);
-				fprintf (fp_C2mumu, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
-						//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-								avC2_mu_mu[(AVDOF*nr)+0][0]);
+				fprintf (fp_C2_mu_mu, "%7.3f", time_d);
+				fprintf (fp_C2_rho_mu, "%7.3f", time_d);
+				fprintf (fp_C2_mu_rho, "%7.3f", time_d);
 			}
-			fprintf (fp_SSF, "%8.4f" " %8.4g""\n" , (nr+1)*kVal , 
+			for (int nk = 0; nk < nCSpatial; nk ++){
+				if (flag_velocity == true) {
+					fprintf (fp_C2_v_v, " %8.4e", avC2_v_v[AVDOF * nk + nType][nt]);
+					fprintf (fp_C2_rho_v, " %8.4e", avC2_rho_v[AVDOF * nk + nType][nt]);
+					fprintf (fp_C2_v_rho, " %8.4e", avC2_v_rho[AVDOF * nk + nType][nt]);
+				}
+				if (flag_velocity && flag_magnet ) {
+					fprintf (fp_C2_v_mu, " %8.4e", avC2_v_mu[AVDOF * nk + nType][nt]);
+					fprintf (fp_C2_mu_v, " %8.4e", avC2_mu_v[AVDOF * nk + nType][nt]);
+				}
+				if (flag_magnet == true) {
+					fprintf (fp_C2_mu_mu, " %8.4e", avC2_mu_mu[AVDOF * nk + nType][nt]);
+					fprintf (fp_C2_rho_mu, " %8.4e", avC2_rho_mu[AVDOF * nk + nType][nt]);
+					fprintf (fp_C2_mu_rho, " %8.4e", avC2_mu_rho[AVDOF * nk + nType][nt]);
+				}
+			}
+			if (flag_velocity == true) {
+				fprintf (fp_C2_v_v, "\n");
+				fprintf (fp_C2_rho_v, "\n");
+				fprintf (fp_C2_v_rho, "\n");
+			}
+			if (flag_velocity && flag_magnet ) {
+				fprintf (fp_C2_v_mu, "\n");
+				fprintf (fp_C2_mu_v, "\n");
+			}
+			if (flag_magnet == true) {
+				fprintf (fp_C2_mu_mu, "\n");
+				fprintf (fp_C2_rho_mu, "\n");
+				fprintf (fp_C2_mu_rho, "\n");
+			}
+		} 
+		for (int nk = 0; nk < nCSpatial; nk ++){
+			real value1 = avF_qq2[(AVDOF*nk)+0][0];
+			real value2 = sqrt( StdDevF_qq2[(AVDOF*nk)+0][0]  - value1*value1 );
+			fprintf (fp_SSF, "%8.4f" " %8.4g" " %8.4g""\n" , (nk+1)*kVal , 
 					//				avF_qq2[(AVDOF*nr)+AV_DEN][0]);
-							avF_qq2[(AVDOF*nr)+0][0]);
+							value1, value2);
 		}
 		fclose(fp_SSF);
 	}
@@ -891,7 +1023,7 @@ void PrintEtc () {
 
 
 	if (flag_t == true) {
-		FILE* fp_Dt = fopen(filename1,"w");
+		FILE* fp_Dt = fopen(fn_Dt,"w");
 		fprintf (fp_Dt, "#time MSD msdx msdy msdz D(t) anotherform MQD");
 		if (flag_velocity==true) {
 			fprintf (fp_Dt, " Cvv Cvcmvcm");
@@ -942,7 +1074,7 @@ void PrintEtc () {
 	 *  van Hove function part
 	 *-----------------------------------------------------------------------------*/
 	/* 	fprintf (fp_Gr, "#van Hove function\n");
-	 * 	FILE* fp_Gr = fopen(filename2,"w");
+	 * 	FILE* fp_Gr = fopen(fn_vanHove,"w");
 	 * 	
 	 * 	for ( nr=0; nr<nCSpatial; nr++)  {
 	 * 		for (j = 0; j < nCTime; j ++) {
@@ -1210,10 +1342,17 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 			tBuf_tw->F_qq2[k][subtime] = 0.;
 			if (flag_velocity == true) {
 				tBuf_tw->C2_v_rho[k][subtime] = 0.;
+				tBuf_tw->C2_rho_v[k][subtime] = 0.;
+				tBuf_tw->C2_v_v[k][subtime]   = 0.;
+			}
+			if (flag_velocity && flag_magnet ) {
+				tBuf_tw->C2_v_mu[k][subtime] = 0.;
+				tBuf_tw->C2_mu_v[k][subtime] = 0.;
 			}
 			if (flag_magnet == true) {
 				tBuf_tw->C2_mu_rho[k][subtime] = 0.;
-				tBuf_tw->C2_mu_mu[k][subtime] = 0.;
+				tBuf_tw->C2_rho_mu[k][subtime] = 0.;
+				tBuf_tw->C2_mu_mu[k][subtime]  = 0.;
 			}
 			if (flag_F == true) {
 				tBuf_tw->F_s_qq2[k][subtime] = 0.;
@@ -1304,13 +1443,13 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		displacement_cm = (sum_ri.x - sum_rj.x)*(sum_ri.x - sum_rj.x);
 		displacement_cm+= (sum_ri.y - sum_rj.y)*(sum_ri.y - sum_rj.y);
 		displacement_cm+= (sum_ri.z - sum_rj.z)*(sum_ri.z - sum_rj.z);
-		tBuf_tw->rrMSDCM[subtime] += displacement_cm;
+		tBuf_tw->rrMSDCM[subtime] += displacement_cm/(nPtls*nPtls);
 
 		if (flag_velocity == true) {
 			Cvcmvcm = sum_vi.x * sum_vj.x;
 			Cvcmvcm += sum_vi.y * sum_vj.y;
 			Cvcmvcm += sum_vi.z * sum_vj.z;
-			tBuf_tw->rrCvcmvcm[subtime] += Cvcmvcm;
+			tBuf_tw->rrCvcmvcm[subtime] += Cvcmvcm/(nPtls*nPtls);
 		}
 
 	}
@@ -1398,12 +1537,32 @@ void EvalTwoTimeKSpace(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 				}
 				if( flag_velocity == true) 
 				{
+					tBuf_tw->C2_v_v[nav][subtime] +=
+						w * (kvel_q1[markerR] * tBuf_tw->org_kvel_q1[markerR] +
+								kvel_q1[markerI] * tBuf_tw->org_kvel_q1[markerI]);
+
+					tBuf_tw->C2_rho_v[nav][subtime] +=
+						w * (kvel_q1[markerR] * tBuf_tw->org_rho_q1[markerR] +
+								kvel_q1[markerI] * tBuf_tw->org_rho_q1[markerI]);
+
 					tBuf_tw->C2_v_rho[nav][subtime] +=
 						w * (rho_q1[markerR] * tBuf_tw->org_kvel_q1[markerR] +
 								rho_q1[markerI] * tBuf_tw->org_kvel_q1[markerI]);
 				}
+				if( flag_velocity&&flag_magnet) 
+				{
+					tBuf_tw->C2_mu_v[nav][subtime] +=
+						w * (kvel_q1[markerR] * tBuf_tw->org_kmu_q1[markerR] +
+								kvel_q1[markerI] * tBuf_tw->org_kmu_q1[markerI]);
+					tBuf_tw->C2_v_mu[nav][subtime] +=
+						w * (kmu_q1[markerR] * tBuf_tw->org_kvel_q1[markerR] +
+								kmu_q1[markerI] * tBuf_tw->org_kvel_q1[markerI]);
+				}
 				if( flag_magnet == true) 
 				{
+					tBuf_tw->C2_rho_mu[nav][subtime] +=
+						w * (kmu_q1[markerR] * tBuf_tw->org_rho_q1[markerR] +
+								kmu_q1[markerI] * tBuf_tw->org_rho_q1[markerI]);
 					tBuf_tw->C2_mu_rho[nav][subtime] +=
 						w * (rho_q1[markerR] * tBuf_tw->org_kmu_q1[markerR] +
 								rho_q1[markerI] * tBuf_tw->org_kmu_q1[markerI]);
@@ -1503,9 +1662,12 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 		if (flag_F == true) {
 			mem += AAM2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
 			mem += AAM2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+			mem += AAM2 (StdDevF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+			mem += AAM2 (StdDevF_d_qq2, AVDOF * nCSpatial, nCTime, real);
 		}
 
 		mem += AAM2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
+		mem += AAM2 (StdDevF_qq2,  AVDOF * nCSpatial, nCTime, real);
 		if (flag_velocity == true) {
 			mem += AAM2 (avC2_v_rho,  AVDOF * nCSpatial, nCTime, real);
 		}
@@ -1533,10 +1695,17 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 			if (flag_velocity == true) {
 				part_mem += AAM (b->org_kvel_q1, FDOF * nCSpatial, real);
 				part_mem += AAM2 (b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
+				part_mem += AAM2 (b->C2_rho_v, AVDOF * nCSpatial, nCTime, real);
+				part_mem += AAM2 (b->C2_v_v, AVDOF * nCSpatial, nCTime, real);
+			}
+			if(flag_velocity&&flag_magnet) {
+				part_mem += AAM2 (b->C2_mu_v, AVDOF * nCSpatial, nCTime, real);
+				part_mem += AAM2 (b->C2_v_mu, AVDOF * nCSpatial, nCTime, real);
 			}
 			if (flag_magnet == true) {
 				part_mem += AAM (b->org_kmu_q1, FDOF * nCSpatial, real);
 				part_mem += AAM2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
+				part_mem += AAM2 (b->C2_rho_mu, AVDOF * nCSpatial, nCTime, real);
 				part_mem += AAM2 (b->C2_mu_mu, AVDOF * nCSpatial, nCTime, real);
 			}
 
@@ -1634,6 +1803,7 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 	KiB = mem % 1024; mem /= 1024;
 	MiB = mem % 1024; 
 	GiB = mem/1024;
+	printf("memory Consume : ");
 	if (GiB >0 ) printf("%dGiB ",GiB);
 	if (MiB >0 ) printf("%dMiB ",MiB);
 	if (KiB >0 ) printf("%dKiB ",KiB);
@@ -1658,13 +1828,23 @@ void AllocArray (MakeSqtClass* cl_sqt)
 			if (flag_F == true) {
 				AllocMem2 (avF_s_qq2, AVDOF * nCSpatial, nCTime, real);
 				AllocMem2 (avF_d_qq2, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (StdDevF_s_qq2, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (StdDevF_d_qq2, AVDOF * nCSpatial, nCTime, real);
 			}
 			AllocMem2 (avF_qq2,  AVDOF * nCSpatial, nCTime, real);
+			AllocMem2 (StdDevF_qq2,  AVDOF * nCSpatial, nCTime, real);
 			if (flag_velocity == true) {
 				AllocMem2 (avC2_v_rho,  AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (avC2_rho_v,  AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (avC2_v_v,  AVDOF * nCSpatial, nCTime, real);
+			}
+			if (flag_velocity && flag_magnet ) {
+				AllocMem2 (avC2_mu_v,  AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (avC2_v_mu,  AVDOF * nCSpatial, nCTime, real);
 			}
 			if (flag_magnet == true) {
 				AllocMem2 (avC2_mu_rho,  AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (avC2_rho_mu,  AVDOF * nCSpatial, nCTime, real);
 				AllocMem2 (avC2_mu_mu,  AVDOF * nCSpatial, nCTime, real);
 			}
 			AllocMem2 (valDqt,  nCSpatial, nCTime, real);
@@ -1674,31 +1854,34 @@ void AllocArray (MakeSqtClass* cl_sqt)
 	AllocMem (cl_sqt->tBuf, nCBuffer, TBuf);
 	TBuf* tBuf = cl_sqt->tBuf;
 	if (flag_f == true) {
-		AllocMem (tBuf->rho_q1, FDOF * nCSpatial, real);
-		if (flag_velocity == true) {
-			AllocMem (tBuf->kvel_q1, FDOF * nCSpatial, real);
-		}
-		if (flag_magnet == true) {
-			AllocMem (tBuf->kmu_q1, FDOF * nCSpatial, real);
-		}
 		for (nb = 0; nb < nCBuffer; nb ++) {
 			TBuf* b = &tBuf[nb];
+			AllocMem (b->rho_q1, FDOF * nCSpatial, real);
 			AllocMem (b->org_rho_q1, FDOF * nCSpatial, real);
+			AllocMem2 (b->F_qq2, AVDOF * nCSpatial, nCTime, real);
 			if (flag_velocity == true) {
+				AllocMem (b->kvel_q1, FDOF * nCSpatial, real);
 				AllocMem (b->org_kvel_q1, FDOF * nCSpatial, real);
-				AllocMem2 (b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2(b->C2_v_rho, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2(b->C2_rho_v, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2(b->C2_v_v, AVDOF * nCSpatial, nCTime, real);
+			}
+			if(flag_velocity && flag_magnet){
+				AllocMem2(b->C2_mu_v, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2(b->C2_v_mu, AVDOF * nCSpatial, nCTime, real);
 			}
 			if (flag_magnet == true) {
+				AllocMem (b->kmu_q1, FDOF * nCSpatial, real);
 				AllocMem (b->org_kmu_q1, FDOF * nCSpatial, real);
-				AllocMem2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
 				AllocMem2 (b->C2_mu_mu, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (b->C2_mu_rho, AVDOF * nCSpatial, nCTime, real);
+				AllocMem2 (b->C2_rho_mu, AVDOF * nCSpatial, nCTime, real);
 			}
 
 			if (flag_F == true) {
 				AllocMem2 (b->F_s_qq2, AVDOF * nCSpatial, nCTime, real);
 				AllocMem2 (b->F_d_qq2, AVDOF * nCSpatial, nCTime, real);
 			}
-			AllocMem2 (b->F_qq2, AVDOF * nCSpatial, nCTime, real);
 		}
 	}
 	/*!
@@ -1759,7 +1942,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 				AllocMem (tBuf->rho_s_q1[natom], FDOF * nCSpatial, real);
 				AllocMem (tBuf->rho_d_q1[natom], FDOF * nCSpatial, real);
 			}
-			fprintf(stderr, "Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
+			fprintf(stderr, "(AllocMore)Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
 		}
 	}
 	for (nb = 0; nb < nCBuffer; nb ++) {
@@ -1796,7 +1979,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 			}
 		}
 	}
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
+	fprintf(stderr, "(AllocMore)Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
 	if (flag_global_alloc_more ==0 ) {
 		AllocMem (factorDr, nCSpatial, real);
 		AllocMem (radius, nCSpatial, real);
@@ -1821,7 +2004,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 		}
 	} // if flag_global_alloc_more   
 
-	fprintf(stderr, "Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
+	fprintf(stderr, "(AllocMore)Reserving memory on heap via AllocMem : %lld GB\n",  ll_mem_size/1000ll/1000ll/1000ll);
 }
 
 int GetNameList ()

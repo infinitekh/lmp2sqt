@@ -17,7 +17,7 @@
  */
 
 #include "common.h"
-char *txtCorr = "##space-time corr";
+char *txtCorr = "##space-time corr\0";
 int fwrite_matrix( FILE *fout, real **m, int xsize, int ysize, real *rt, real *ct)
 {
 	int j;

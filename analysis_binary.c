@@ -501,7 +501,7 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 	//		if ( NULL == (pSnap = read_dump (input ) )) break;
 	int suc_count = 0, full_count = strlen(txtCorr) ;
 	// To reach end of file, break!!
-  fread(full_count,sizeof(int),1,input);
+  fread(&full_count,sizeof(int),1,input);
 	suc_count = fread (bp,sizeof(char) ,full_count,input);
 	if ( full_count != suc_count)  return;
 	int nTypes;
@@ -520,7 +520,8 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 			char str_temp[100];
 			int strlength = strlen(header[j]);
 
-			fread(strlength,sizeof(int),1,input);
+			int length;
+			fread(&length,sizeof(int),1,input);
 			fread(str_temp, sizeof(char), strlength, input);
 
 			fread(&col2, sizeof(real),1,input);
@@ -554,7 +555,7 @@ void load_raw_data_a_pack(real* rbuffer, int weight)
 		g_weight +=weight;
 	}
 }
-void load_raw_data_text()// Need Check!!!!!
+void load_raw_data_text()// Need Check!!!!!   Unused!!!
 {
 	real* rbuffer = alloc_real(nCSpatial * nCTime);
 	// The Preamble
@@ -647,15 +648,23 @@ void load_raw_data()
 		work = alloc_Cmplx( 2 * (nCTime -1));
 	nData =0;
 	nSet =0;
+	int k2;
+	int loop = 0;
 	while (1) {
 		//		if ( NULL == (pSnap = read_dump (input ) )) break;
+		loop++;
 
 		int suc_count = 0, full_count = strlen(txtCorr) ;
 		int header_txtCorr ;
 		suc_count = fread (&header_txtCorr ,sizeof(int) ,1,input);
 		// To reach end of file, break!!
+		printf("infinite loop %d\n", loop);
 		if ( header_txtCorr !=  full_count){
 			puts("File error Header size different");
+			printf(" header_txtCorr ( %d) != full_count (%d) \n", header_txtCorr, full_count );
+			suc_count = fread (bp,sizeof(char) ,full_count,input);
+			puts(bp);
+			puts(txtCorr);
 			exit(1);
 		}
 		suc_count = fread (bp,sizeof(char) ,full_count,input);
@@ -664,24 +673,42 @@ void load_raw_data()
 
 		if (! strncmp (bp, txtCorr, strlen (txtCorr))) {
 			++ nSet;
-			if (nSet < nSetSkip) continue;
+			if (nSet < nSetSkip) {
+				printf("nSet(%d) < nSetSkip(%d)\n", nSet,nSetSkip);
+				continue;
+			}
 			++ nData;
 
-			fread (&nTypes,sizeof(int) ,1,input);
-			for ( j =0; j < nTypes; j++) {
+			suc_count = fread (&nTypes,sizeof(int) ,1,input);
+			printf("nTypes(%d) is why\n",nTypes);
+			if (suc_count != 1 ){
+				printf("Number of datatypes check error: suscount(%d) != count [ %u] \n", 
+						suc_count,1u);
+				exit(1);
+			}
+			for ( k2 =0; k2 < nTypes; k2++) {
+				printf("nTypes loop %d\n", k2);
 				real col2 ; 
 				real col3 ; 
 				real col4 ; 
 
 /* 				char str_temp[100] = "# ";
- * 				strncpy(str_temp +2 , header[j], strlen(header[j]));
+ * 				strncpy(str_temp +2 , header[k2], strlen(header[k2]));
  */
 				char str_temp[100];
-				size_t strlength = strlen(header[j]);
-				int length;
-				fread(&length, sizeof(int),1,input);
+				int strlength = strlen(header[k2]);
+				int length=0;
+				int dataOk;
+				
+				suc_count = fread(&length, sizeof(int),1,input);
+				if (suc_count != 1 ){
+					puts("Read length error");
+					exit(1);
+				}
 				if(length !=strlength) {
 					puts("sub header length different. version check");
+					printf("header[%d] = %s, len = %zu\n", k2, header[k2], strlen(header[k2]));
+					printf("strlength ( %d) != length ( %d) \n",strlength,length);
 					exit(1);
 				}
 
@@ -690,31 +717,33 @@ void load_raw_data()
 				fread(&col2, sizeof(real),1,input);
 				fread(&col3, sizeof(real),1,input);
 				fread(&col4, sizeof(real),1,input);
+				fread(&dataOk, sizeof(int),1,input);
 
 				kVal = col2;
 				deltaT = col3;
 				rVal = col4;
 
-				int ret_cmp = strncmp (header[j], str_temp,  strlen (header[j]));
+				int ret_cmp = strncmp (header[k2], str_temp,  strlen (header[k2]));
 #ifndef NDEBUG
 				printf( "str_temp : %s\n"
 						"col2 : %f\n"
 						"col3 : %f\n"
-						"col4 : %f\n", str_temp,col2,col3,col4);
+						"col4 : %f\n"
+						"DataOk : %d\n", str_temp,col2,col3,col4,dataOk);
 				printf("ret_cmp %d, %s -- %s   %d\n", ret_cmp,
-						header[j],str_temp,(int)strlen(str_temp));
+						header[k2],str_temp,(int)strlen(str_temp));
 
 #endif
 
 				// header types check(not completed)
-				if ( !ret_cmp )  {
+				if ( !ret_cmp &&dataOk )  {
 					fread(rbuffer, sizeof(real), (nCTime*nCSpatial), input);
 					for ( n =0; n<nCTime; n ++) {
 //						bp = fgets (buff, BUFF_LEN, input);
 						for ( k = 0; k < nCSpatial; k += 1 ) {
 							w = rbuffer[ n*nCSpatial + k ]; // transpose
-							corrSum[j][k * nCTime + n] += w;
-							corrSumSq[j][k * nCTime + n] += Sqr(w);
+							corrSum[k2][k * nCTime + n] += w;
+							corrSumSq[k2][k * nCTime + n] += Sqr(w);
 						}
 					}
 				}
@@ -722,6 +751,10 @@ void load_raw_data()
 		}
 	}
 	fclose (input);
+
+	free(rbuffer);
+	if (doFourier)
+		free(work);
 	printf ("%d\n", nData);
 }
 void scaling_data()
