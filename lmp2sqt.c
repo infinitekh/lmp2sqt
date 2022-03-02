@@ -153,6 +153,11 @@ int main(int argc, char** argv) {
 		opt = getopt (argc,argv, "tfFsVMi:d");
 		if (opt == -1) break;
 		switch (opt) {
+			case 's' :
+				puts("flag_s on : stress tensor calculation on");
+				puts("require flag_t : also on");
+				flag_t = true;
+				flag_s = true; break;
 			case 't' :
 				puts("flag_t on : two time correlation");
 				flag_t = true; break;
@@ -163,9 +168,6 @@ int main(int argc, char** argv) {
 				puts("flag_F on : self-collective space time correlation ");
 				puts("flag_f on : collective space time correlation ");
 				flag_f= flag_F = true; break;
-			case 's' :
-				puts("flag_s on : stress tensor calculation on");
-				flag_s = true; break;
 			case 'V' :
 				puts("flag_velocity on : velocity correlation on");
 				flag_velocity = true; break;
@@ -632,12 +634,13 @@ void prePrintProcess ()
 	 *   rrMQDAv -> mean quadropole displacemnt 
 	 *-----------------------------------------------------------------------------*/
 	//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
+	real scale_countAv = 1./countCorrAv;
 	real scale_factor = 1./ ( nPtls *  countCorrAv); 
 	real factor_Cvv = 1./(nPtls* countCorrAv*3.);
 	real factor_msdcm = 1./( countCorrAv);
 	real factor_Cvcmvcm = 1./( countCorrAv*3.);
-	real factor_dig = 1./(3.*countCorrAv * g_Vol);
-	real factor_offdig = 1./(6.*countCorrAv * g_Vol);
+	real factor_dig = 1./(3. * g_Vol);
+	real factor_offdig = 1./(6. * g_Vol);
 
 	if (flag_t == true) {
 #pragma omp parallel for
@@ -658,7 +661,8 @@ void prePrintProcess ()
 				real_tensor_product_r1_r0r1(&rrMSR1_R_Av[nt], scale_factor,
 						&rrMSR1_R_Av[nt]);
 				real_tensor_product_r2_r0r2(&rrMSR2_VR_Av[nt]
-						, (.5*mass*mass),&rrMSR2_VR_Av[nt]);
+						, (.5*mass*mass)*scale_countAv,&rrMSR2_VR_Av[nt]);
+
 				rrMSR2_VR_Av_dig[nt] = 
 					factor_dig*	real_tensor_sum_dig_r2(&rrMSR2_VR_Av[nt]);
 				rrMSR2_VR_Av_offdig[nt] = 

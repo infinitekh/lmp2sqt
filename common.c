@@ -61,14 +61,19 @@ void real_tensor_product_r1_r0r1(VecR3*  lvalue,real a,VecR3* rvalue) {
 	lvalue->y = a*rvalue->y;
 	lvalue->z = a*rvalue->z;
 }
+void real_tensor_scale_r1(VecR3*  lvalue,real a ) {
+		real_tensor_product_r1_r0r1(lvalue, a, lvalue);
+}
 void real_tensor_product_r2_r1r1( Rank2R3* r2,
 		VecR3 *r1a, VecR3* r1b) {
 	r2->xx = r1a->x * r1b->x;
 	r2->xy = r1a->x * r1b->y;
 	r2->xz = r1a->x * r1b->z;
+
 	r2->yx = r1a->y * r1b->x;
 	r2->yy = r1a->y * r1b->y;
 	r2->yz = r1a->y * r1b->z;
+
 	r2->zx = r1a->z * r1b->x;
 	r2->zy = r1a->z * r1b->y;
 	r2->zz = r1a->z * r1b->z;
@@ -85,6 +90,9 @@ void real_tensor_product_r2_r0r2( Rank2R3* r2,
 	r2->zx = a * r2b->zx;
 	r2->zy = a * r2b->zy;
 	r2->zz = a * r2b->zz;
+}
+void real_tensor_scale_r2(Rank2R3*  lvalue,real a ) {
+		real_tensor_product_r2_r0r2(lvalue, a, lvalue);
 }
 void real_tensor_product_r2_r2r2( Rank2R3* r2,
 		Rank2R3 * r2a, 
