@@ -775,7 +775,7 @@ void PrintSpacetimeCorr_binary (FILE *fp)
 
 	extern real kVal;
 	int  nType,  k2;
-	[[maybe_unused]] int nr;
+  int nr  __attribute__((unused));
 //	Number_call_Print ++;
 	//	char *header[] = {"cur-long", "cur-trans", "density", "vanHove-self"};
 	char *header[] = {
