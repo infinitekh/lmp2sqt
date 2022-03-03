@@ -64,6 +64,8 @@ void real_tensor_decrease_r2_r2( Rank2R3* ,
 		 Rank2R3* ) ;
 void real_tensor_zero_r2( Rank2R3* );
 void real_tensor_zero_r1( VecR3* );
+real real_tensor_avg_dig_r2(Rank2R3*);
+real real_tensor_avg_offdig_r2(Rank2R3*);
 real real_tensor_sum_dig_r2(Rank2R3*);
 real real_tensor_sum_offdig_r2(Rank2R3*);
 #endif

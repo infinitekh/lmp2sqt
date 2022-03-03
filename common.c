@@ -158,6 +158,12 @@ void real_tensor_zero_r2( Rank2R3* r2) {
 	r2->yx = 0.; r2->yy = 0.; r2->yz = 0.;
 	r2->zx = 0.; r2->zy = 0.; r2->zz = 0.;
 }
+real real_tensor_avg_offdig_r2( Rank2R3* r2) {
+	return real_tensor_sum_offdig_r2(r2)/6.0;
+}
+real real_tensor_avg_dig_r2( Rank2R3* r2) {
+	return real_tensor_sum_dig_r2(r2)/3.0;
+}
 real real_tensor_sum_offdig_r2( Rank2R3* r2) {
 	return r2->xy +r2->xz + r2->yx +    r2->yz + r2->zx + r2->zy;
 }
