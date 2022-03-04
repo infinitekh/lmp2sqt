@@ -48,6 +48,8 @@ void real_tensor_product_r2_r1r1( Rank2R3* ,
 		VecR3 *r1a, VecR3* ) ;
 void real_tensor_product_r2_r2r2( Rank2R3* ,
 		Rank2R3 *, Rank2R3* ) ;
+void real_tensor_scale_r2( Rank2R3* ,
+		real );
 void real_tensor_product_r2_r0r2( Rank2R3* ,
 		real , Rank2R3*) ;
 void real_tensor_add_r1_r1r1( VecR3* ,

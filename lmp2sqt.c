@@ -427,8 +427,8 @@ void AccumSpacetimeCorr (MakeSqtClass* cl_sqt) // __thread_safe__
 					if (flag_s == true) {
 						real_tensor_increase_r1_r1(&rrMSR1_R_Av[nt], 
 								&pt->rrMSR1_R[nt]);
-						real_tensor_increase_r2_r2(&rrMSR2_VR_Av[nt], 
-								&pt->rrMSR2_VR[nt]);
+						real_tensor_increase_r2_r2(&rrACR2_Stress_Av[nt], 
+								&pt->rrACR2_Stress[nt]);
 					}
 				}
 			}
@@ -530,9 +530,9 @@ void ZeroAvSpacetimeCorr ()
 
 			if (flag_s == true) {
 				real_tensor_zero_r1( &rrMSR1_R_Av[nt] );
-				real_tensor_zero_r2(	&rrMSR2_VR_Av [nt] ) ;
-				rrMSR2_VR_Av_offdig[nt] = 0.;
-				rrMSR2_VR_Av_dig [nt]   = 0.;
+				real_tensor_zero_r2(	&rrACR2_Stress_Av [nt] ) ;
+				rrACR2_Stress_Av_offdig[nt] = 0.;
+				rrACR2_Stress_Av_dig [nt]   = 0.;
 			}
 		}
 	}
@@ -635,7 +635,7 @@ void prePrintProcess ()
 	 *-----------------------------------------------------------------------------*/
 	//				fac = 1./ ( DIM * 2 * nPtls * deltaT * limitCorrAv); 
 	real scale_countAv = 1./countCorrAv;
-	real scale_4stress = .5*mass*mass/(countCorrAv* g_Vol);
+	real scale_4stress = .5/(countCorrAv* g_Vol);
 	real scale_factor = 1./ ( nPtls *  countCorrAv); 
 	real factor_Cvv = 1./(nPtls* countCorrAv*3.);
 	real factor_msdcm = 1./( countCorrAv);
@@ -659,13 +659,13 @@ void prePrintProcess ()
 			if (flag_s == true) {
 				real_tensor_product_r1_r0r1(&rrMSR1_R_Av[nt], scale_factor,
 						&rrMSR1_R_Av[nt]);
-				real_tensor_product_r2_r0r2(&rrMSR2_VR_Av[nt]
-						, scale_4stress,&rrMSR2_VR_Av[nt]);
+				real_tensor_product_r2_r0r2(&rrACR2_Stress_Av[nt]
+						, scale_4stress,&rrACR2_Stress_Av[nt]);
 
-				rrMSR2_VR_Av_dig[nt] = 
-					real_tensor_avg_dig_r2(&rrMSR2_VR_Av[nt]);
-				rrMSR2_VR_Av_offdig[nt] = 
-					real_tensor_avg_offdig_r2(&rrMSR2_VR_Av[nt]);
+				rrACR2_Stress_Av_dig[nt] = 
+					real_tensor_avg_dig_r2(&rrACR2_Stress_Av[nt]);
+				rrACR2_Stress_Av_offdig[nt] = 
+					real_tensor_avg_offdig_r2(&rrACR2_Stress_Av[nt]);
 
 			}
 		}
@@ -1004,21 +1004,27 @@ void PrintEtc () {
 	//  fprintf (fp_SSF, "# dq = %7.3e\n", kVal);
 	if (flag_s == true) {
 		FILE* fp_stress = fopen(filename_stress,"w");
-		fprintf (fp_stress, "#time MSVR_dig MSVR_offdig xy yx zy yz xz zx\n");
+		fprintf (fp_stress, "#time AC_Stress_dig AC_Stress_offdig xy yx zy yz xz zx\n");
 		fprintf (stderr, "print out stress file\n");
+		real inte_dig=0;
+		real inte_offdig=0.;
 
 
 		for ( int  nt = 0; nt < nCTime; nt += 1 ) {
+			real timediffer = deltaT * (nCSkip +1);
 			real tVal = nt * deltaT* (nCSkip+1);
-			fprintf (fp_stress, "%8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g \n", 
+			inte_dig += timediffer  * rrACR2_Stress_Av_dig[nt];
+			inte_offdig += timediffer * rrACR2_Stress_Av_offdig[nt];
+			fprintf (fp_stress, "%8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g %8.4g \n", 
 					tVal,  
-					rrMSR2_VR_Av_dig[nt], rrMSR2_VR_Av_offdig[nt]
-					, rrMSR2_VR_Av[nt].xy
-					, rrMSR2_VR_Av[nt].yx
-					, rrMSR2_VR_Av[nt].zy
-					, rrMSR2_VR_Av[nt].yz
-					, rrMSR2_VR_Av[nt].xz
-					, rrMSR2_VR_Av[nt].zx
+					rrACR2_Stress_Av_dig[nt], rrACR2_Stress_Av_offdig[nt]
+					, rrACR2_Stress_Av[nt].xy
+					, rrACR2_Stress_Av[nt].yx
+					, rrACR2_Stress_Av[nt].zy
+					, rrACR2_Stress_Av[nt].yz
+					, rrACR2_Stress_Av[nt].xz
+					, rrACR2_Stress_Av[nt].zx
+					, inte_dig, inte_offdig
 					); 
 		}
 		fclose(fp_stress); 
@@ -1268,9 +1274,15 @@ void SetWaitedTimeCorr(MakeSqtClass* cl_sqt, TBuf* tBuf_tw)
 	real *	kmu_q1  = tBuf->kmu_q1 ;
 	real **	rho_s_q1  = tBuf->rho_s_q1 ;
 	real **	rho_d_q1 = tBuf->rho_d_q1;
+	Rank2R3 diffSumVR;
 
 	if (flag_s == true) {
-		real_tensor_copy_r2r2(& tBuf_tw->orgSumVR, &tBuf->sumVR_ct);
+		real_tensor_sub_r2_r2r2(&diffSumVR,&tBuf_tw->sumVR_ct, &tBuf->sumVR_pt);
+		real_tensor_scale_r2(&diffSumVR, mass/(1.0*deltaT*(nCSkip+1))  );
+		real_tensor_copy_r2r2(& tBuf_tw->sumVR_pt, &tBuf->sumVR_ct);
+
+		real_tensor_copy_r2r2(& tBuf_tw->orgStress, &diffSumVR);
+		real_tensor_copy_r2r2(& tBuf->Stress_ct, &diffSumVR);
 	}
 
 	if (flag_t == true) {
@@ -1332,7 +1344,7 @@ void InitTwoTimeCorr (MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		}
 		if (flag_s == true) {
 			real_tensor_zero_r1 (&tBuf_tw->rrMSR1_R[subtime]);
-			real_tensor_zero_r2 (&tBuf_tw->rrMSR2_VR[subtime]);
+			real_tensor_zero_r2 (&tBuf_tw->rrACR2_Stress[subtime]);
 		}
 	}
 
@@ -1460,16 +1472,14 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 void EvalTwoTimeCollective(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 {
 	if (flag_s == true) {
-		Rank2R3 subVR,sqVR;
+		Rank2R3 prod_Stress;
 		TBuf* tBuf = cl_sqt->tBuf;
-		real_tensor_sub_r2_r2r2(
-				&subVR, &tBuf->sumVR_ct, 
-				&tBuf_tw->orgSumVR);
-		real_tensor_product_r2_r2r2 (
-				& sqVR, & subVR, & subVR);
+		real_tensor_product_r2_r2r2(
+				&prod_Stress, &tBuf->Stress_ct, 
+				&tBuf_tw->orgStress);
 
 		real_tensor_increase_r2_r2(
-				&tBuf_tw->rrMSR2_VR[subtime], &sqVR);
+				&tBuf_tw->rrACR2_Stress[subtime], &prod_Stress);
 	}
 }
 
@@ -1736,9 +1746,9 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 		// AllocArray for shear viscosity
 		// 				 (diffusion of momentum)
 		if (flag_s == true) {
-			mem += AAM (rrMSR2_VR_Av, nCTime, Rank2R3);
-			mem += AAM (rrMSR2_VR_Av_dig, nCTime, real);
-			mem += AAM (rrMSR2_VR_Av_offdig, nCTime, real);
+			mem += AAM (rrACR2_Stress_Av, nCTime, Rank2R3);
+			mem += AAM (rrACR2_Stress_Av_dig, nCTime, real);
+			mem += AAM (rrACR2_Stress_Av_offdig, nCTime, real);
 		}
 	}
 	if (flag_f == true) {
@@ -1777,7 +1787,7 @@ void AmountAllocArray(MakeSqtClass * cl_sqt)
 			part_mem += AAM (tBuf[nb].rrMQD, nCTime, real);
 			part_mem += AAM (tBuf[nb].rrMSR1_R, nCTime, VecR3);
 			if (flag_s == true) {
-				part_mem += AAM (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
+				part_mem += AAM (tBuf[nb].rrACR2_Stress, nCTime, Rank2R3);
 			}
 		}
 
@@ -1856,6 +1866,7 @@ void AllocArray (MakeSqtClass* cl_sqt)
 	}
 	AllocMem (cl_sqt->tBuf, nCBuffer, TBuf);
 	TBuf* tBuf = cl_sqt->tBuf;
+	real_tensor_zero_r2(&tBuf->sumVR_pt);
 	if (flag_f == true) {
 		for (nb = 0; nb < nCBuffer; nb ++) {
 			TBuf* b = &tBuf[nb];
@@ -1908,9 +1919,9 @@ void AllocArray (MakeSqtClass* cl_sqt)
 			// AllocArray for shear viscosity
 			// 				 (diffusion of momentum)
 			if (flag_s == true) {
-				AllocMem (rrMSR2_VR_Av, nCTime, Rank2R3);
-				AllocMem (rrMSR2_VR_Av_dig, nCTime, real);
-				AllocMem (rrMSR2_VR_Av_offdig, nCTime, real);
+				AllocMem (rrACR2_Stress_Av, nCTime, Rank2R3);
+				AllocMem (rrACR2_Stress_Av_dig, nCTime, real);
+				AllocMem (rrACR2_Stress_Av_offdig, nCTime, real);
 			}
 		}
 		if (flag_f == true) {
@@ -1965,7 +1976,7 @@ void Alloc_more (MakeSqtClass* cl_sqt)
 			AllocMem (tBuf[nb].rrMQD, nCTime, real);
 			AllocMem (tBuf[nb].rrMSR1_R, nCTime, VecR3);
 			if (flag_s == true) {
-				AllocMem (tBuf[nb].rrMSR2_VR, nCTime, Rank2R3);
+				AllocMem (tBuf[nb].rrACR2_Stress, nCTime, Rank2R3);
 			}
 		}
 

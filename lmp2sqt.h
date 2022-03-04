@@ -56,11 +56,13 @@ typedef struct {
 	real *rho_q1, *kvel_q1, *kmu_q1 ;
 	real **rho_s_q1, **rho_d_q1;
 	real *rho_s_q1_temp;
-	Rank2R3 orgSumVR;
+	Rank2R3 orgStress;
 	Rank2R3 sumVR_ct;
+	Rank2R3 Stress_ct;
+	Rank2R3 sumVR_pt;
 	real *rrCvv, *rrCmm; real *rrCvcmvcm;
 	// VecR3 *orgVel; real *acfVel;
-	Rank2R3 *rrMSR2_VR;
+	Rank2R3 *rrACR2_Stress;
 	VecR3 *rrMSR1_R;
 	real *rrMSD;
 	real *rrMSDCM;
@@ -196,8 +198,8 @@ real **avDrTable;
 /*!
  *  \brief  Accumulate and average value ( globall)
  */
-real *rrMSR2_VR_Av_offdig;    
-real *rrMSR2_VR_Av_dig;
+real *rrACR2_Stress_Av_offdig;    
+real *rrACR2_Stress_Av_dig;
 VecR3 *rrMSR1_R_Av;
 real *rrMQDAv;
 real *rrMSDAv;
@@ -205,7 +207,7 @@ real *rrMSDCMAv;
 real *rrCvvAv;
 real *rrCvcmvcmAv;
 real *rrCmmAv;
-Rank2R3 *rrMSR2_VR_Av;
+Rank2R3 *rrACR2_Stress_Av;
 
 
 /*!

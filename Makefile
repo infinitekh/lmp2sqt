@@ -11,26 +11,26 @@ CFLAGS = -fopenmp -std=c99
 
 
 all:  build debug prof
-build: analysis lmp2sqt.simple analysis_binary
+build: analysis lmp2sqt.stress analysis_binary
 analysis_binary: analysis_binary.c snapshot.c common.c 
 	$(CC) $(CFLAGS) analysis_binary.c snapshot.c common.c  -lm -O3 -o $@.$(VERSION).out -DNDEBUG
 analysis: analysis.c snapshot.c common.c 
 	$(CC) $(CFLAGS) analysis.c snapshot.c common.c  -lm -O3 -o $@.$(VERSION).out -DNDEBUG
-lmp2sqt.simple: lmp2sqt.c snapshot.c common.c 
+lmp2sqt.stress: lmp2sqt.c snapshot.c common.c 
 	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm -O3  -o $@.$(VERSION).out -DNDEBUG
-debug: debug_analysis  debug_lmp2sqt.simple debug_analysis_binary
-prof: prof_lmp2sqt.simple 
+debug: debug_analysis  debug_lmp2sqt.stress debug_analysis_binary
+prof: prof_lmp2sqt.stress 
 debug_analysis_binary:analysis_binary.c snapshot.c common.c
 	$(CC) $(CFLAGS) analysis_binary.c snapshot.c common.c -lm -ggdb -o $@.$(VERSION).gdb
 debug_analysis:analysis.c snapshot.c common.c
 	$(CC) $(CFLAGS) analysis.c snapshot.c common.c -lm -ggdb -o $@.$(VERSION).gdb
-prof_lmp2sqt.simple:lmp2sqt.c snapshot.c common.c
+prof_lmp2sqt.stress:lmp2sqt.c snapshot.c common.c
 	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm  -pg -o $@.$(VERSION).gdb
-debug_lmp2sqt.simple:lmp2sqt.c snapshot.c common.c
+debug_lmp2sqt.stress:lmp2sqt.c snapshot.c common.c
 	$(CC) $(CFLAGS) lmp2sqt.c snapshot.c common.c -lm  -ggdb -o $@.$(VERSION).gdb
 
-install: analysis.out lmp2sqt.simple.out analysis_binary.out
-	cp analysis.out lmp2sqt.simple.out analysis_binary.out /home/kh/bin/
+install: analysis.out lmp2sqt.stress.out analysis_binary.out
+	cp analysis.out lmp2sqt.stress.out analysis_binary.out /home/kh/bin/
 clean: clean_out clean_gdb clean_gprof
 
 clean_out: *.out
