@@ -881,12 +881,13 @@ last:
 
 			//      scaling by function of  t=0
 			for ( k = 0; k < nCSpatial; k += 1 ) {
+				real zero_time_value = corrSum [j][k*nCTime];
+				Fqt [j][k*nCTime ] = zero_time_value;
 #pragma omp parallel for
 				for ( n = 1; n < nCTime; n += 1 ){ 
 					Fqt [j][k*nCTime + n] = corrSum [j][k*nCTime + n] ;
-					corrSum[j][k * nCTime +n] /= corrSum[j][k*nCTime];
+					corrSum[j][k * nCTime +n] /= zero_time_value;
 				}
-				Fqt [j][k*nCTime ] = corrSum [j][k*nCTime ] ;
 				corrSum[j][k * nCTime] = 1.;
 			}
 		}
