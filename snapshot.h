@@ -44,7 +44,7 @@ typedef struct {
 	real *vx,*vy,*vz;    
 	int atomType;
 	int nTime;
-} atomstream;
+} AtomStream;
 typedef struct {
 	int id,type;
 	int x,y,z;
@@ -61,7 +61,7 @@ typedef struct {
 			 vy,                                      /*!< \brief velocity of x-axis */
 			 vz;                                      /*!< \brief velocity of x-axis */
 	int atomType;
-} vAtom;
+} AtomVel;
 typedef struct {
 	int id,                                       ///< unique atom id
 			type;                                     ///< atom type
@@ -73,22 +73,7 @@ typedef struct {
 			 muz;                                     /*!< \brief magnetic moment of x-axis */
 	real mu1;                                     /*!< \brief \f$ |\mu| \f$ */
 	int atomType;
-} muAtom;
-typedef struct {
-	int id,                                       ///< unique atom id
-			type;                                     ///< atom type
-	real x,                                       ///< atom position
-			 y,                                       ///< atom position z
-			 z;                                       /*!< \brief atom position z */
-	real mux,                                     /*!< \brief magnetic moment of x-axis */
-			 muy,                                     /*!< \brief magnetic moment of x-axis */
-			 muz;                                     /*!< \brief magnetic moment of x-axis */
-	real vx,                                      /*!< \brief velocity of x-axis */
-			 vy,                                      /*!< \brief velocity of x-axis */
-			 vz;                                      /*!< \brief velocity of x-axis */
-	real mu1;                                     /*!< \brief \f$ |\mu| \f$ */
-	int atomType;
-} atomAll;
+} AtomMu;
 typedef struct {
 	int id,                                       ///< unique atom id
 			type;                                     ///< atom type
@@ -103,7 +88,22 @@ typedef struct {
 			 vz;                                      /*!< \brief velocity of x-axis */
 	real mu1;                                     /*!< \brief \f$ |\mu| \f$ */
 	int atomType;
-} atom;
+} AtomAll;
+typedef struct {
+	int id,                                       ///< unique atom id
+			type;                                     ///< atom type
+	real x,                                       ///< atom position
+			 y,                                       ///< atom position z
+			 z;                                       /*!< \brief atom position z */
+	real mux,                                     /*!< \brief magnetic moment of x-axis */
+			 muy,                                     /*!< \brief magnetic moment of x-axis */
+			 muz;                                     /*!< \brief magnetic moment of x-axis */
+	real vx,                                      /*!< \brief velocity of x-axis */
+			 vy,                                      /*!< \brief velocity of x-axis */
+			 vz;                                      /*!< \brief velocity of x-axis */
+	real mu1;                                     /*!< \brief \f$ |\mu| \f$ */
+	int atomType;
+} Atom;
 /*!
  * \struct atom
  *  \brief atom degree of freedom 3(dimension) x 3 (pos,velo,magn)
@@ -132,9 +132,9 @@ typedef struct {
 
 typedef struct  {
 	bigint timestep;                              /*!< \brief t : time  */
-	int    n_atoms;                               /*!< \brief n : the number of atom */
-	Box3 box;                                     /*!< \brief Box property */
-	atom* atoms;                                  /*!< \brief atom[0..n-1] */
+	int    NumAtoms;                               /*!< \brief n : the number of atom */
+	Box3 Box;                                     /*!< \brief Box property */
+	Atom* atoms;                                  /*!< \brief atom[0..n-1] */
 	int snapFlag;
 } Snapshot;
 /*!
@@ -142,31 +142,31 @@ typedef struct  {
  */
 
 
-int make_atom(atom* col,int id, int type, 
+int make_atom(Atom* col,int id, int type, 
 		real x, real y, real z) ;
-int make_atom_vel(atom* col,int id, int type, 
+int make_atom_vel(Atom* col,int id, int type, 
 		real x, real y, real z,
 		real vx,real vy, real vz) ;
-int make_atom_dipole(atom* col,int id, int type, 
+int make_atom_dipole(Atom* col,int id, int type, 
 		real x, real y, real z,
 		real mux,real muy, real muz) ;
-int make_atom_all(atom* col,int id, int type, 
+int make_atom_all(Atom* col,int id, int type, 
 		real x, real y, real z,
 		real mux,real muy, real muz,
 		real vx,real vy, real vz) ;
-Snapshot* read_dump(FILE*);
-int read_dump_OnlyCheck(FILE*);
+Snapshot* ReadDump(FILE*);
+int ReadDumpForOnlyCheck(FILE*);
 void read_lines(int n,FILE*);
-void* error(char[]);
-void free_Snapshot(Snapshot *snap) ;
-Snapshot* new_Snapshot(bigint timestep, int n) ;
+void* error(char[MAXLINE]);
+void FreeSnapshot(Snapshot *snap) ;
+Snapshot* NewSnapshot(bigint timestep, int n) ;
 
 
 /*-----------------------------------------------------------------------------
  *  edit 160811
  *-----------------------------------------------------------------------------*/
-int dump_stream(atomstream *,FILE*, int nTime,int nAtom, int id, int type);
-int free_stream(atomstream *);
-int malloc_stream(atomstream *, int nTime);
+int DumpAtomStream(AtomStream *,FILE*, int nTime,int nAtom, int id, int type);
+int FreeAtomStream(AtomStream *);
+int MallocAtomStream(AtomStream *, int nTime);
 
 #endif

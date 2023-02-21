@@ -210,7 +210,7 @@ int main(int argc, char** argv) {
 
 		n_snap = 0;	
 		while(1) {
-			bool check =	read_dump_OnlyCheck(fp);
+			bool check =	ReadDumpForOnlyCheck(fp);
 
 			if (check == false )
 				break;
@@ -284,7 +284,7 @@ int main(int argc, char** argv) {
 		 *  \brief  Start Calculation.
 		 */
 		rewind(fp);  
-			firstSnap = read_dump(fp);
+			firstSnap = ReadDump(fp);
 		Init_reciprocal_space(firstSnap);
 		rewind(fp);
 
@@ -292,14 +292,14 @@ int main(int argc, char** argv) {
 		for (int ns = 0 ; ns < num_data[opt_num] ; ns++ ) {
 			/* 		while(1) {}
 			*/
-			snap =	read_dump(fp);
+			snap =	ReadDump(fp);
 			if (snap == NULL)
 				break;
 			cl_sqt->snap = snap;
 			
 			EvalSpacetimeCorr(cl_sqt);
 
-			free_Snapshot(snap);
+			FreeSnapshot(snap);
 //#pragma omp atomic
 			full_n_snaps_index++;
 
@@ -1122,7 +1122,7 @@ void EvalOneTimeSumVR(MakeSqtClass* cl_sqt)
 {
 	Rank2R3 VR;  
 	VecR3  vecr3,vel;
-	atom* col_i;
+	Atom* col_i;
 	TBuf* tBuf = cl_sqt->tBuf;
 	Snapshot* snap = cl_sqt->snap;
 	for (int n=0; n<nPtls; n++) {
@@ -1151,7 +1151,7 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 	real *	rho_s_q1_temp  = tBuf->rho_s_q1_temp ;
 	real **	rho_s_q1  = tBuf->rho_s_q1 ;
 	real **	rho_d_q1 = tBuf->rho_d_q1;
-	atom* col_i;
+	Atom* col_i;
 
 /*-----------------------------------------------------------------------------
  *  Direct calculate  rho(q)
@@ -1377,7 +1377,7 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		for (int n=0; n<nPtls; n++) {
 			VecR3 dr;
 			real dx2,dy2,dz2,dr2,Cvv,Cmm;
-			atom* col_i = &(snap->atoms[n]);
+			Atom* col_i = &(snap->atoms[n]);
 			VecR3* pos_j = &(tBuf_tw->orgR[n]);
 			VecR3* vel_j = &(tBuf_tw->orgV[n]);
 			VecR3* mu_j;
@@ -1616,9 +1616,9 @@ void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 	TBuf* tBuf = cl_sqt->tBuf;
 	Snapshot* snap = cl_sqt->snap;
 
-	L = snap->box.xhigh- snap->box.xlow;
+	L = snap->Box.xhigh- snap->Box.xlow;
 	g_Vol  = L*L*L;
-	nPtls = snap->n_atoms;
+	nPtls = snap->NumAtoms;
 	if (cl_sqt->flag_alloc_more ==0 ) {
 		//omp_set_lock(&write_lock);
 		Alloc_more(cl_sqt);
@@ -2179,9 +2179,9 @@ void Init_reciprocal_space(Snapshot * snap) {
 	real L[3];
 	// zero initalize current time value
 	// we assume L0=L1 = L2 
-	L[0] = snap->box.xhigh- snap->box.xlow;
-	L[1] = snap->box.yhigh- snap->box.ylow;
-	L[2] = snap->box.zhigh- snap->box.zlow;
+	L[0] = snap->Box.xhigh- snap->Box.xlow;
+	L[1] = snap->Box.yhigh- snap->Box.ylow;
+	L[2] = snap->Box.zhigh- snap->Box.zlow;
 
 	/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 	 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {

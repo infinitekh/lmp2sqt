@@ -7,7 +7,7 @@
 	memcpy(a,b,sizeof(type));           \
 	return 0;                           \
 }
-COPY(atom);
+COPY(Atom);
 COPY(Box3);
 const char s_timestep[] = "ITEM: TIMESTEP";
 const char s_n_atoms[] = "ITEM: NUMBER OF ATOMS";
@@ -21,7 +21,8 @@ const char s_atoms_all[]    = "ITEM: ATOMS id type xu yu zu mux muy muz vx vy vz
 const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 const char delimeter[] = " ";
 char * strtok_null_safe ( char * str, const char * delimiters );
-int read_dump_OnlyCheck( FILE* fp) {
+
+int ReadDumpForOnlyCheck( FILE* fp) {
 	const int i_timestep = strlen(s_timestep);
 	const int i_n_atoms = strlen(s_n_atoms);
 	const int i_box_bounds = strlen(s_box_bounds);
@@ -46,7 +47,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 	real mux,muy,muz;
 	real vx,vy,vz;
 	int i;
-	atom* p_atom;
+	Atom* p_atom;
 #define FAIL false
 #define SUCCESS n_atoms
 	read_lines(1,fp);
@@ -100,10 +101,10 @@ int read_dump_OnlyCheck( FILE* fp) {
 	zhigh = atof(strtok_null_safe(NULL,delimeter));
 
 	
-	Snapshot *snap   = new_Snapshot(timestep,n_atoms);
+	Snapshot *snap   = NewSnapshot(timestep,n_atoms);
 	Box3 box = {xlow,xhigh,ylow,yhigh,zlow,zhigh, pbcTYPE};
 //	Box3 box = {xlow,xhigh,ylow,yhigh,zlow,zhigh, {pbc[0],pbc[1],pbc[2]}};
-	copy_Box3( &snap->box,  &box);
+	copy_Box3( &snap->Box,  &box);
 
 //	error( (char*)s_timestep);
 //	fprintf(stderr,"%ld\n", timestep);
@@ -163,7 +164,7 @@ int read_dump_OnlyCheck( FILE* fp) {
 
 	return SUCCESS;
 }
-Snapshot* read_dump( FILE* fp) {
+Snapshot* ReadDump( FILE* fp) {
 	const char s_timestep[] = "ITEM: TIMESTEP";
 	const char s_n_atoms[] = "ITEM: NUMBER OF ATOMS";
 	const char s_box_bounds[] = "ITEM: BOX BOUNDS pp pp pp";
@@ -190,7 +191,7 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 	real xu,yu,zu,mux,muy,muz;
 	real vx,vy,vz;
 	int i;
-	atom* p_atom;
+	Atom* p_atom;
 	error_code =0;
 
 	read_lines(1,fp);
@@ -243,10 +244,10 @@ const char s_atoms[]    = "ITEM: ATOMS id type xu yu zu";
 	zhigh = atof(strtok_null_safe(NULL,delimeter));
 
 	
-	Snapshot *snap   = new_Snapshot(timestep,n_atoms);
+	Snapshot *snap   = NewSnapshot(timestep,n_atoms);
 //	Box3 box = {xlow,xhigh,ylow,yhigh,zlow,zhigh, {pbc[0],pbc[1],pbc[2]}};
 	Box3 box = {xlow,xhigh,ylow,yhigh,zlow,zhigh, pbcTYPE};
-	copy_Box3( &snap->box,  &box);
+	copy_Box3( &snap->Box,  &box);
 
 	error( (char*)s_timestep);
 //	fprintf(stderr,"%ld\n", timestep);
@@ -410,23 +411,23 @@ void read_lines(int n,FILE* fp)  // from lammps reader_native.cpp
 }
 
 
-Snapshot* new_Snapshot(bigint timestep, int n) {
+Snapshot* NewSnapshot(bigint timestep, int n) {
 	Snapshot* snap = (Snapshot*) malloc(sizeof(Snapshot));
 	snap->timestep = timestep;
-	snap-> n_atoms = n;
-	snap->atoms = (atom*) malloc(sizeof(atom)*n);
+	snap-> NumAtoms = n;
+	snap->atoms = (Atom*) malloc(sizeof(Atom)*n);
 	return snap;
 }
 
 
-void free_Snapshot(Snapshot* snap) {
+void FreeSnapshot(Snapshot* snap) {
  if(snap->atoms !=NULL)
 	 free(snap->atoms);
  if(snap !=NULL)
 	 free(snap);
 }
 
-int make_atom(atom* col,int id, int type, 
+int make_atom(Atom* col,int id, int type, 
 		real x, real y, real z) {
 	real mu1;
 	if (col ==NULL)
@@ -436,7 +437,7 @@ int make_atom(atom* col,int id, int type,
 	col->atomType = 0;
 	return 0;
 }
-int make_atom_dipole(atom* col,int id, int type, 
+int make_atom_dipole(Atom* col,int id, int type, 
 		real x, real y, real z,
 		real mux,real muy, real muz) {
 	real mu1;
@@ -453,7 +454,7 @@ int make_atom_dipole(atom* col,int id, int type,
 	col->atomType = ATOM_DIPOLE;
 	return 0;
 }
-int make_atom_vel(atom* col,int id, int type, 
+int make_atom_vel(Atom* col,int id, int type, 
 		real x, real y, real z,
 		real vx,real vy, real vz) {
 	real mu1;
@@ -467,7 +468,7 @@ int make_atom_vel(atom* col,int id, int type,
 	col->atomType = ATOM_VEL;
 	return 0;
 }
-int make_atom_all(atom* col,int id, int type, 
+int make_atom_all(Atom* col,int id, int type, 
 		real x, real y, real z,
 		real mux,real muy, real muz,
 		real vx, real vy, real vz) {
@@ -488,12 +489,12 @@ int make_atom_all(atom* col,int id, int type,
 	}
 	return 0;
 }
-int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, int s_type) 
+int DumpAtomStream(AtomStream* stream, FILE* fp, int nTime, int n_atoms,int s_id, int s_type) 
 {
 	int id,type;
 	real xu,yu,zu,mux,muy,muz;
 	real vx,vy,vz;
-	atom* p_atom;
+	Atom* p_atom;
 	const int i_atoms = strlen(s_atoms);
 	const int i_atoms_vel = strlen(s_atoms_vel);
 	const int i_atoms_dipole = strlen(s_atoms_dipole);
@@ -605,7 +606,7 @@ int dump_stream(atomstream* stream, FILE* fp, int nTime, int n_atoms,int s_id, i
 	}
 	return 0;
 }
-int malloc_stream( atomstream* stream, int nTime) 
+int MallocAtomStream( AtomStream* stream, int nTime) 
 {
 	stream->x = (real*) malloc( nTime* sizeof(real));
 	stream->y = (real*) malloc( nTime* sizeof(real));
@@ -614,14 +615,14 @@ int malloc_stream( atomstream* stream, int nTime)
 	stream->muy = (real*) malloc( nTime* sizeof(real));
 	stream->muz = (real*) malloc( nTime* sizeof(real));
 }
-int free_stream( atomstream* stream)
+int FreeAtomStream( AtomStream* stream)
 {
-	free(&(stream->x));
-	free(&(stream->y));
-	free(&(stream->z));
-	free(&(stream->mux));
-	free(&(stream->muy));
-	free(&(stream->muz));
+	free(stream->x);
+	free(stream->y);
+	free(stream->z);
+	free(stream->mux);
+	free(stream->muy);
+	free(stream->muz);
 }
 #undef FAIL
 #undef SUCCESS
