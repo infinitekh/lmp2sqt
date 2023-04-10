@@ -302,7 +302,8 @@ int main ( int argc, char **argv)
 				bp = fgets (buff, BUFF_LEN, input); 
 				int ret_cmp = strncmp (bp, str_temp,  strlen (str_temp));
 #ifndef NDEBUG
-				printf("strncmp : (%s) %s   %d\n", bp, str_temp,ret_cmp );
+                                printf("strncmp : (%s) %s   %d\n", bp, str_temp,
+                                       ret_cmp);
 #endif
 				// header types check(not completed)
 				if ( !ret_cmp )  {

@@ -132,40 +132,34 @@ typedef struct {
 
 typedef struct  {
 	bigint timestep;                              /*!< \brief t : time  */
-	int    NumAtoms;                               /*!< \brief n : the number of atom */
-	Box3 Box;                                     /*!< \brief Box property */
-	Atom* atoms;                                  /*!< \brief atom[0..n-1] */
-	int snapFlag;
+        int NumAtoms; /*!< \brief n : the number of atom */
+        Box3 Box;     /*!< \brief Box property */
+        Atom *atoms;  /*!< \brief atom[0..n-1] */
+        int snapFlag;
 } Snapshot;
 /*!
  *  \brief  struct  for system snapshot
  */
 
-
-int make_atom(Atom* col,int id, int type, 
-		real x, real y, real z) ;
-int make_atom_vel(Atom* col,int id, int type, 
-		real x, real y, real z,
-		real vx,real vy, real vz) ;
-int make_atom_dipole(Atom* col,int id, int type, 
-		real x, real y, real z,
-		real mux,real muy, real muz) ;
-int make_atom_all(Atom* col,int id, int type, 
-		real x, real y, real z,
-		real mux,real muy, real muz,
-		real vx,real vy, real vz) ;
-Snapshot* ReadDump(FILE*);
-int ReadDumpForOnlyCheck(FILE*);
+int make_atom(Atom *col, int id, int type, real x, real y, real z);
+int make_atom_vel(Atom *col, int id, int type, real x, real y, real z, real vx,
+                  real vy, real vz);
+int make_atom_dipole(Atom *col, int id, int type, real x, real y, real z,
+                     real mux, real muy, real muz);
+int make_atom_all(Atom *col, int id, int type, real x, real y, real z, real mux,
+                  real muy, real muz, real vx, real vy, real vz);
+Snapshot *ReadDump(FILE *);
+int ReadDumpForOnlyCheck(FILE *);
 void read_lines(int n,FILE*);
-void* error(char[MAXLINE]);
-void FreeSnapshot(Snapshot *snap) ;
-Snapshot* NewSnapshot(bigint timestep, int n) ;
-
+void *error(char[MAXLINE]);
+void FreeSnapshot(Snapshot *snap);
+Snapshot *NewSnapshot(bigint timestep, int n);
 
 /*-----------------------------------------------------------------------------
  *  edit 160811
  *-----------------------------------------------------------------------------*/
-int DumpAtomStream(AtomStream *,FILE*, int nTime,int nAtom, int id, int type);
+int DumpAtomStream(AtomStream *, FILE *, int nTime, int nAtom, int id,
+                   int type);
 int FreeAtomStream(AtomStream *);
 int MallocAtomStream(AtomStream *, int nTime);
 

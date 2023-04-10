@@ -210,12 +210,12 @@ int main(int argc, char** argv) {
 
 		n_snap = 0;	
 		while(1) {
-			bool check =	ReadDumpForOnlyCheck(fp);
+                  bool check = ReadDumpForOnlyCheck(fp);
 
-			if (check == false )
-				break;
+                  if (check == false)
+                    break;
 
-			n_snap++; 
+                  n_snap++; 
 		}
 		// if ( flag_Max_eval)
 		if (n_snap <5){
@@ -283,24 +283,24 @@ int main(int argc, char** argv) {
 		/*!
 		 *  \brief  Start Calculation.
 		 */
-		rewind(fp);  
-			firstSnap = ReadDump(fp);
-		Init_reciprocal_space(firstSnap);
+		rewind(fp);
+                firstSnap = ReadDump(fp);
+                Init_reciprocal_space(firstSnap);
 		rewind(fp);
 
 		fprintf(stderr,"FULL_SNAPS = %5d\n",full_n_snaps);
 		for (int ns = 0 ; ns < num_data[opt_num] ; ns++ ) {
 			/* 		while(1) {}
 			*/
-			snap =	ReadDump(fp);
-			if (snap == NULL)
+                        snap = ReadDump(fp);
+                        if (snap == NULL)
 				break;
 			cl_sqt->snap = snap;
 			
 			EvalSpacetimeCorr(cl_sqt);
 
-			FreeSnapshot(snap);
-//#pragma omp atomic
+                        FreeSnapshot(snap);
+                        //#pragma omp atomic
 			full_n_snaps_index++;
 
 			i_done_works++;
@@ -483,6 +483,7 @@ void ZeroAvSpacetimeCorr ()
 	int nk,nt,  nr;
 	countCorrAv = 0;
 	if (flag_f == true) {
+#pragma GCC ivdep
 		for (nk = 0; nk < AVDOF * nCSpatial; nk ++) {
 			for (nt = 0; nt < nCTime; nt ++) {
 				avF_qq2[nk][nt] = 0.;
@@ -1122,8 +1123,8 @@ void EvalOneTimeSumVR(MakeSqtClass* cl_sqt)
 {
 	Rank2R3 VR;  
 	VecR3  vecr3,vel;
-	Atom* col_i;
-	TBuf* tBuf = cl_sqt->tBuf;
+        Atom *col_i;
+        TBuf* tBuf = cl_sqt->tBuf;
 	Snapshot* snap = cl_sqt->snap;
 	for (int n=0; n<nPtls; n++) {
 		col_i = &(snap->atoms[n]);
@@ -1151,12 +1152,12 @@ void EvalOneTimeKspace(MakeSqtClass* cl_sqt)
 	real *	rho_s_q1_temp  = tBuf->rho_s_q1_temp ;
 	real **	rho_s_q1  = tBuf->rho_s_q1 ;
 	real **	rho_d_q1 = tBuf->rho_d_q1;
-	Atom* col_i;
+        Atom *col_i;
 
-/*-----------------------------------------------------------------------------
- *  Direct calculate  rho(q)
- *  FIXIT : (~v)(q)   (~mu)(q) 
- *-----------------------------------------------------------------------------*/
+        /*-----------------------------------------------------------------------------
+         *  Direct calculate  rho(q)
+         *  FIXIT : (~v)(q)   (~mu)(q)
+         *-----------------------------------------------------------------------------*/
 	for (int n=0; n<nPtls; n++) {
 		col_i = &(snap->atoms[n]);
 
@@ -1377,8 +1378,8 @@ void EvalTwoTimeEach(MakeSqtClass* cl_sqt, TBuf* tBuf_tw, int subtime)
 		for (int n=0; n<nPtls; n++) {
 			VecR3 dr;
 			real dx2,dy2,dz2,dr2,Cvv,Cmm;
-			Atom* col_i = &(snap->atoms[n]);
-			VecR3* pos_j = &(tBuf_tw->orgR[n]);
+                        Atom *col_i = &(snap->atoms[n]);
+                        VecR3* pos_j = &(tBuf_tw->orgR[n]);
 			VecR3* vel_j = &(tBuf_tw->orgV[n]);
 			VecR3* mu_j;
 			if (flag_magnet == true) {
@@ -1616,10 +1617,10 @@ void EvalSpacetimeCorr(MakeSqtClass* cl_sqt)
 	TBuf* tBuf = cl_sqt->tBuf;
 	Snapshot* snap = cl_sqt->snap;
 
-	L = snap->Box.xhigh- snap->Box.xlow;
-	g_Vol  = L*L*L;
-	nPtls = snap->NumAtoms;
-	if (cl_sqt->flag_alloc_more ==0 ) {
+        L = snap->Box.xhigh - snap->Box.xlow;
+        g_Vol  = L*L*L;
+        nPtls = snap->NumAtoms;
+        if (cl_sqt->flag_alloc_more ==0 ) {
 		//omp_set_lock(&write_lock);
 		Alloc_more(cl_sqt);
 		cl_sqt->flag_alloc_more =1;
@@ -2178,12 +2179,12 @@ void Init_reciprocal_space(Snapshot * snap) {
 	int n_mul;
 	real L[3];
 	// zero initalize current time value
-	// we assume L0=L1 = L2 
-	L[0] = snap->Box.xhigh- snap->Box.xlow;
-	L[1] = snap->Box.yhigh- snap->Box.ylow;
-	L[2] = snap->Box.zhigh- snap->Box.zlow;
+	// we assume L0=L1 = L2
+        L[0] = snap->Box.xhigh - snap->Box.xlow;
+        L[1] = snap->Box.yhigh - snap->Box.ylow;
+        L[2] = snap->Box.zhigh - snap->Box.zlow;
 
-	/* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
+        /* 	for (k = 0; k < sizeof (nameList) / sizeof (NameList); k ++) {
 	 * 		if ( strcmp(vName, nameList[k].vName)== 0 )  {
 	 * 			j=0;
 	 * 			p_kVal = NP_R;

@@ -213,19 +213,19 @@ void Print_R2_data ( FILE* fp, real* datas)
 	for (nr = 0; nr < nCSpatial; nr += 1 ) {
 		x= (nr+1)*kVal; 
 		printf("### kVal = %d * %f= %f\n", nr+1,kVal,x);
-		fprintf (fp, " %9.4e", x);
+		fprintf (fp, " %.13e", x);
 	}
 	fprintf (fp, "\n");
 
 	for (n=0; n < nCTime; n++) {
 		if (doFourier) x = n * omegaMax / nv;
 		else x = n * deltaTCorr;
-		printf ( "%9.4e", x);
-		fprintf (fp, "%9.4e", x);
+		printf ( "%.13e", x);
+		fprintf (fp, "%.13e", x);
 
 		for ( nr = 0; nr < nCSpatial; nr += 1 ) {
-			printf (" %9.4e", datas[nr * nCTime +n]);
-			fprintf (fp," %9.4e", datas[nr * nCTime +n]);
+			printf (" %.13e", datas[nr * nCTime +n]);
+			fprintf (fp," %.13e", datas[nr * nCTime +n]);
 		}
 		fprintf (fp,"\n");
 	}
@@ -870,7 +870,7 @@ last:
 				}
 
 				cT = cT < k*nCTime +NValDiff  ? cT: k*nCTime+NValDiff;
-				fprintf(output, "%lf %le %le %le %le \n", qVal, 
+				fprintf(output, "%.13lf %.13le %.13le %.13le %.13le \n", qVal, 
 						//							corrSum[j][k*nCTime], Fqt1[j][k*nCTime], 
 						corrSum[j][cT],Fqt1[j][cT], 
 						GammaQT[j][cT], Dqt[j][cT]);
@@ -893,7 +893,7 @@ last:
 	}
 	tMax = Min ( tMax, (nCTime -1) * deltaTCorr);
 	nv = nCTime * tMax /  (nCTime - 1) / deltaTCorr;
-	printf("nv = %d, tMax = %f, nCTime = %d, deltaTCorr = %f\n" , nv ,tMax, nCTime, deltaTCorr);
+	printf("nv = %d, tMax = %.13f, nCTime = %d, deltaTCorr = %.13f\n" , nv ,tMax, nCTime, deltaTCorr);
 }
 void print_output () 
 {
