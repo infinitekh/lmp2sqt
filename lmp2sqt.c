@@ -129,7 +129,7 @@ int main(int argc, char** argv) {
 	rawtime = time(NULL);
 	timeinfo   =  localtime(&rawtime);
 //	strftime(datetime_data,100,"%y%d%m_%H%M", timeinfo);
-	strftime(datetime_data,100,"%y%d%m", timeinfo);
+	strftime(datetime_data,100,"%y%m%d", timeinfo);
 	char help_message[2000];
 	sprintf(help_message,"%s -f -t -s fn_Dt filename 2 ... \n"
 "	options: \n"
